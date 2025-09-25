@@ -13,6 +13,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.insightsapp.data.database.AppDatabase
 import com.example.insightsapp.ui.main.MainViewModel
 import com.example.insightsapp.ui.main.MainViewModelFactory
+import com.example.insightsapp.ui.profile.ProfileScreen
 import com.example.insightsapp.ui.surveys.SurveysScreen
 import com.example.insightsapp.ui.wallet.WalletScreen
 
@@ -135,7 +136,7 @@ fun MainScreen(
                         onWithdrawClick = { /* Handle withdraw */ },
                         onRedeemClick = { /* Handle redeem */ }
                     )
-                    2 -> ProfileScreen(user = uiState.user)
+                    2 -> ProfileScreen(phoneNumber = phoneNumber)
                 }
             }
         }
