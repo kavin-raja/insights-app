@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Half-filled shield -->
+    <path android:fillColor="#57C6A9"
+        android:pathData="M12,1l-9,4v6c0,5.55 3.84,10.74 9,12V1z"/>
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#57C6A9"
+        android:strokeWidth="1"
+        android:pathData="M12,1l9,4v6c0,5.55 -3.84,10.74 -9,12V1z"/>
+</vector>
