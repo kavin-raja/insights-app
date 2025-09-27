@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.insightsapp.data.creditScore.CreditScoreService
-import com.example.insightsapp.data.database.AppDatabase
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -124,33 +124,40 @@ class BasicDetailsViewModel(
     // ✅ Add this method to save basic details
     private suspend fun saveBasicDetailsToDatabase() {
         try {
-            val database = AppDatabase.getDatabase(context)
+            val databaseProvider = RemoteDatabaseProvider.getInstance(context)
             val currentState = _state.value
 
-            // Update user with basic details
-            database.userDao().updateUserBasicDetails(
-                phoneNumber = phoneNumber,
-                fullName = currentState.fullName,
-                dateOfBirth = currentState.dateOfBirth,
-                gender = currentState.selectedGender, // ✅ Fixed: use selectedGender
-                panNumber = currentState.panNumber,
-                creditScore = currentState.creditScore,
-                completed = true,
-                timestamp = System.currentTimeMillis()
-            )
+            // Get user by phone number to get userId
+            val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
 
-            println("✅ Basic details saved to database:")
-            println("   - Name: ${currentState.fullName}")
-            println("   - DOB: ${currentState.dateOfBirth}")
-            println("   - Gender: ${currentState.selectedGender}")
-            println("   - PAN: ${currentState.panNumber}")
-            println("   - Credit Score: ${currentState.creditScore}")
+            if (user != null) {
+                // ✅ Use repository instead of direct data source
+                databaseProvider.userRepository.updateBasicDetails(
+                    userId = user.userId,
+                    fullName = currentState.fullName,
+                    dateOfBirth = currentState.dateOfBirth,
+                    gender = currentState.selectedGender,
+                    panNumber = currentState.panNumber,
+                    creditScore = currentState.creditScore,
+                    completed = true,
+                    timestamp = System.currentTimeMillis()
+                )
+
+                println("✅ Basic details saved to database:")
+                println("   - Name: ${currentState.fullName}")
+                println("   - DOB: ${currentState.dateOfBirth}")
+                println("   - Gender: ${currentState.selectedGender}")
+                println("   - PAN: ${currentState.panNumber}")
+                println("   - Credit Score: ${currentState.creditScore}")
+            }
 
         } catch (e: Exception) {
             println("❌ Error saving basic details: ${e.message}")
             e.printStackTrace()
         }
     }
+
+
 
     private fun isValidDate(date: String): Boolean {
         return try {

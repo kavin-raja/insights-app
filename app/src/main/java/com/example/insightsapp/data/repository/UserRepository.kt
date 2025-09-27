@@ -1,79 +1,76 @@
 package com.example.insightsapp.data.repository
 
-import android.app.Activity
-import com.example.insightsapp.data.auth.FirebaseAuthService
 import com.example.insightsapp.data.database.User
-import com.example.insightsapp.data.database.UserDao
-import com.google.firebase.auth.FirebaseUser
-import kotlinx.coroutines.flow.Flow
-import javax.inject.Inject
-import javax.inject.Singleton
+import com.example.insightsapp.data.remote.RemoteUserDataSource
 
-@Singleton
-class UserRepository @Inject constructor(
-    private val userDao: UserDao,
-    private val firebaseAuthService: FirebaseAuthService
+class UserRepository(
+    private val remoteDataSource: RemoteUserDataSource
 ) {
-    fun getUserByPhoneNumber(phoneNumber: String): Flow<User?> {
-        return userDao.getUserByPhoneNumberFlow(phoneNumber)
+
+    suspend fun getUserByPhoneNumber(phoneNumber: String): User? {
+        return remoteDataSource.getUserByPhoneNumber(phoneNumber)
     }
 
-    suspend fun createOrUpdateUser(phoneNumber: String): User {
-        val existingUser = userDao.getUserByPhoneNumber(phoneNumber)
-
-        return if (existingUser != null) {
-            val updatedUser = existingUser.copy(lastLoginAt = System.currentTimeMillis())
-            userDao.updateUser(updatedUser)
-            updatedUser
-        } else {
-            val newUser = User(phoneNumber = phoneNumber)
-            userDao.insertUser(newUser)
-            newUser
-        }
+    suspend fun getUserByUserId(userId: String): User? {
+        return remoteDataSource.getUserByUserId(userId)
     }
 
-    suspend fun verifyUser(phoneNumber: String) {
-        userDao.updateVerificationStatus(phoneNumber, true)
-        userDao.updateLastLogin(phoneNumber, System.currentTimeMillis())
+    suspend fun insertUser(user: User): User {
+        return remoteDataSource.insertUser(user)
     }
 
-    suspend fun sendOtp(phoneNumber: String, activity: Activity): Result<String> {
-        return try {
-            firebaseAuthService.sendOtp(phoneNumber, activity)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun updateUser(user: User) {
+        remoteDataSource.updateUser(user)
     }
-
-    suspend fun verifyOtp(otp: String): Result<FirebaseUser> {
-        return try {
-            firebaseAuthService.verifyOtp(otp)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    // ✅ Added: Method to save user after successful verification
-    suspend fun saveUserToDatabase(phoneNumber: String, firebaseUser: FirebaseUser) {
-        val user = User(
-            phoneNumber = phoneNumber,
-            isVerified = true,
-            createdAt = System.currentTimeMillis(),
-            lastLoginAt = System.currentTimeMillis()
+    suspend fun updateBasicDetails(
+        userId: String,
+        fullName: String,
+        dateOfBirth: String,
+        gender: String,
+        panNumber: String,
+        creditScore: Int,
+        completed: Boolean,
+        timestamp: Long
+    ) {
+        remoteDataSource.updateBasicDetails(
+            userId, fullName, dateOfBirth, gender, panNumber, creditScore, completed, timestamp
         )
-        userDao.insertUser(user)
     }
 
-    // ✅ Added: Resend OTP method
-    suspend fun resendOtp(phoneNumber: String, activity: Activity): Result<String> {
-        return try {
-            firebaseAuthService.resendOtp(phoneNumber, activity)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+
+    suspend fun updateVerificationStatus(userId: String, verified: Boolean) {
+        remoteDataSource.updateVerificationStatus(userId, verified)
     }
 
-    fun getCurrentUser() = firebaseAuthService.getCurrentUser()
+    suspend fun updateLastLogin(userId: String, timestamp: Long) {
+        remoteDataSource.updateLastLogin(userId, timestamp)
+    }
 
-    fun signOut() = firebaseAuthService.signOut()
+    suspend fun markAccountComplete(userId: String, complete: Boolean, hasReward: Boolean, timestamp: Long) {
+        remoteDataSource.markAccountComplete(userId, complete, hasReward, timestamp)
+    }
+    suspend fun updateUserPermissions(
+        userId: String,
+        callLog: Boolean,
+        messages: Boolean,
+        storage: Boolean,
+        deviceInfo: Boolean,
+        consentGiven: Boolean,
+        timestamp: Long
+    ) {
+        remoteDataSource.updateUserPermissions(
+            userId, callLog, messages, storage, deviceInfo, consentGiven, timestamp
+        )
+    }
+
+    suspend fun updateCreditScore(
+        userId: String,
+        score: Int,
+        provider: String,
+        timestamp: Long,
+        status: String
+    ) {
+        remoteDataSource.updateCreditScore(userId, score, provider, timestamp, status)
+    }
+
 }

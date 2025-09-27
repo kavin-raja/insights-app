@@ -1,8 +1,9 @@
 package com.example.insightsapp.ui.privacy
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.insightsapp.data.repository.AuthRepository
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +16,10 @@ data class PermissionState(
     val deviceInfoPermission: Boolean = false
 )
 
-class PrivacyConsentViewModel : ViewModel() {
+class PrivacyConsentViewModel(
+    private val databaseProvider: RemoteDatabaseProvider
+) : ViewModel() {
+
     private val _isConsentGiven = MutableStateFlow(false)
     val isConsentGiven: StateFlow<Boolean> = _isConsentGiven.asStateFlow()
 
@@ -52,20 +56,54 @@ class PrivacyConsentViewModel : ViewModel() {
         }
     }
 
-    suspend fun savePermissionsToDatabase(phoneNumber: String, authRepository: AuthRepository) {
+    // ✅ Updated method to use UserRepository instead of AuthRepository
+    suspend fun savePermissionsToDatabase(phoneNumber: String) {
         _isLoading.value = true
         try {
-            val permissions = _permissions.value
-            authRepository.updateUserPermissions(
-                phoneNumber = phoneNumber,
-                callLog = permissions.callLogPermission,
-                messages = permissions.messagesPermission,
-                storage = permissions.storagePermission,
-                deviceInfo = permissions.deviceInfoPermission,
-                consentGiven = _isConsentGiven.value
-            )
+            // Get user by phone number to get userId
+            val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
+
+            if (user != null) {
+                val permissions = _permissions.value
+
+                // ✅ Use your existing updateUserPermissions method
+                databaseProvider.userRepository.updateUserPermissions(
+                    userId = user.userId, // ✅ Use userId instead of phoneNumber
+                    callLog = permissions.callLogPermission,
+                    messages = permissions.messagesPermission,
+                    storage = permissions.storagePermission,
+                    deviceInfo = permissions.deviceInfoPermission,
+                    consentGiven = _isConsentGiven.value,
+                    timestamp = System.currentTimeMillis()
+                )
+
+                println("✅ Permissions saved to database for user: ${user.userId}")
+                println("   - Call Log: ${permissions.callLogPermission}")
+                println("   - Messages: ${permissions.messagesPermission}")
+                println("   - Storage: ${permissions.storagePermission}")
+                println("   - Device Info: ${permissions.deviceInfoPermission}")
+                println("   - Consent Given: ${_isConsentGiven.value}")
+            } else {
+                println("❌ User not found for phone number: $phoneNumber")
+            }
+        } catch (e: Exception) {
+            println("❌ Error saving permissions: ${e.message}")
+            e.printStackTrace()
         } finally {
             _isLoading.value = false
         }
+    }
+}
+
+// ✅ Add ViewModelFactory
+class PrivacyConsentViewModelFactory(
+    private val databaseProvider: RemoteDatabaseProvider
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(PrivacyConsentViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return PrivacyConsentViewModel(databaseProvider) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

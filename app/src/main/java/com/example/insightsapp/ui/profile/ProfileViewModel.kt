@@ -3,8 +3,8 @@ package com.example.insightsapp.ui.profile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.example.insightsapp.data.database.AppDatabase
 import com.example.insightsapp.data.database.User
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,7 +17,7 @@ data class ProfileUiState(
 )
 
 class ProfileViewModel(
-    private val database: AppDatabase,
+    private val databaseProvider: RemoteDatabaseProvider,
     private val phoneNumber: String
 ) : ViewModel() {
 
@@ -33,7 +33,8 @@ class ProfileViewModel(
             _uiState.value = _uiState.value.copy(isLoading = true)
 
             try {
-                val user = database.userDao().getUserByPhoneNumber(phoneNumber)
+                // ✅ Use repository instead of direct data source
+                val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
                 println("📱 Profile: Loading user data for $phoneNumber")
                 println("👤 User: ${user?.fullName} (${user?.phoneNumber})")
 
@@ -47,6 +48,7 @@ class ProfileViewModel(
             }
         }
     }
+
 
     fun toggleNotifications(enabled: Boolean) {
         _uiState.value = _uiState.value.copy(notificationsEnabled = enabled)
@@ -86,13 +88,13 @@ class ProfileViewModel(
 }
 
 class ProfileViewModelFactory(
-    private val database: AppDatabase,
+    private val databaseProvider: RemoteDatabaseProvider,
     private val phoneNumber: String
 ) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ProfileViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ProfileViewModel(database, phoneNumber) as T
+            return ProfileViewModel(databaseProvider, phoneNumber) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

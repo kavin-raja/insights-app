@@ -1,10 +1,10 @@
 package com.example.insightsapp.ui.wallet
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.insightsapp.data.database.Transaction
-import com.example.insightsapp.data.database.TransactionDao
-import com.example.insightsapp.data.database.UserDao
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,8 +17,7 @@ data class WalletState(
 )
 
 class WalletViewModel(
-    private val userDao: UserDao,
-    private val transactionDao: TransactionDao,
+    private val databaseProvider: RemoteDatabaseProvider,
     private val phoneNumber: String
 ) : ViewModel() {
 
@@ -34,19 +33,36 @@ class WalletViewModel(
             _state.value = _state.value.copy(isLoading = true)
 
             try {
-                // ✅ Collect transactions flow
-                transactionDao.getTransactionsByPhoneNumber(phoneNumber).collect { transactions ->
-                    // ✅ Calculate balance from transactions
-                    val balance = calculateBalance(transactions)
+                println("🔄 WalletViewModel: Loading wallet data for $phoneNumber")
 
-                    _state.value = WalletState(
-                        currentBalance = balance,
-                        transactions = transactions,
-                        isLoading = false
-                    )
+                // ✅ Get user by phone number to get userId
+                val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
+
+                if (user != null) {
+                    println("👤 User found: ${user.userId}")
+
+                    // ✅ Collect transactions flow using userId
+                    databaseProvider.transactionRepository.getTransactionsByUserId(user.userId).collect { transactions ->
+                        // ✅ Calculate balance from transactions
+                        val balance = calculateBalance(transactions)
+
+                        println("💰 Wallet data loaded:")
+                        println("   - Balance: $balance")
+                        println("   - Transactions: ${transactions.size}")
+
+                        _state.value = WalletState(
+                            currentBalance = balance,
+                            transactions = transactions,
+                            isLoading = false
+                        )
+                    }
+                } else {
+                    println("❌ User not found for phone number: $phoneNumber")
+                    _state.value = _state.value.copy(isLoading = false)
                 }
             } catch (e: Exception) {
-                println("Error loading wallet  ${e.message}")
+                println("❌ Error loading wallet  ${e.message}")
+                e.printStackTrace()
                 _state.value = _state.value.copy(isLoading = false)
             }
         }
@@ -67,29 +83,57 @@ class WalletViewModel(
     fun addSignupReward() {
         viewModelScope.launch {
             try {
-                // Check if signup reward already exists
-                val existingTransactions = _state.value.transactions
-                val hasSignupReward = existingTransactions.any {
-                    it.description == "Signup Reward"
-                }
+                println("🎁 Adding signup reward for $phoneNumber")
 
-                if (!hasSignupReward) {
-                    // Add signup reward transaction
-                    val rewardTransaction = Transaction(
-                        phoneNumber = phoneNumber,
-                        type = "CREDIT",
-                        amount = 500.0,
-                        description = "Signup Reward",
-                        timestamp = System.currentTimeMillis(),
-                        status = "SUCCESS"
+                // Get user by phone number to get userId
+                val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
+
+                if (user != null) {
+                    // Check if signup reward already exists
+                    val existingRewards = databaseProvider.transactionRepository.getTransactionsByType(
+                        user.userId, "Signup Reward"
                     )
 
-                    transactionDao.insertTransaction(rewardTransaction)
-                    println("Signup reward of ₹500 added for $phoneNumber")
+                    if (existingRewards.isEmpty()) {
+                        // Add signup reward transaction
+                        val rewardTransaction = Transaction(
+                            userId = user.userId, // ✅ Use userId instead of phoneNumber
+                            type = "CREDIT",
+                            amount = 500.0,
+                            description = "Signup Reward",
+                            timestamp = System.currentTimeMillis(),
+                            status = "SUCCESS"
+                        )
+
+                        databaseProvider.transactionRepository.insertTransaction(rewardTransaction)
+                        println("✅ Signup reward of ₹500 added for $phoneNumber")
+
+                        // Reload wallet data to reflect the new transaction
+                        loadWalletData()
+                    } else {
+                        println("⚠️ Signup reward already exists for $phoneNumber")
+                    }
+                } else {
+                    println("❌ User not found when adding signup reward: $phoneNumber")
                 }
             } catch (e: Exception) {
-                println("Error adding signup reward: ${e.message}")
+                println("❌ Error adding signup reward: ${e.message}")
+                e.printStackTrace()
             }
         }
+    }
+}
+
+// ✅ Add ViewModelFactory
+class WalletViewModelFactory(
+    private val databaseProvider: RemoteDatabaseProvider,
+    private val phoneNumber: String
+) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(WalletViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return WalletViewModel(databaseProvider, phoneNumber) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

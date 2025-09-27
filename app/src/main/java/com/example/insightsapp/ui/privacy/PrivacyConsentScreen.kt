@@ -21,15 +21,21 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.launch
+
 
 @Preview(showBackground = true)
 @Composable
 fun PrivacyConsentScreenPreview() {
+    val context = LocalContext.current
+    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
+    val viewModel = PrivacyConsentViewModel(databaseProvider)
+
     PrivacyConsentScreen(
         phoneNumber = "+919876543210",
         onPermissionsGranted = {},
-        viewModel = PrivacyConsentViewModel()
+        viewModel = viewModel
     )
 }
 
@@ -37,15 +43,22 @@ fun PrivacyConsentScreenPreview() {
 fun PrivacyConsentScreen(
     phoneNumber: String,
     onPermissionsGranted: () -> Unit,
-    viewModel: PrivacyConsentViewModel = viewModel()
+    viewModel: PrivacyConsentViewModel? = null // ✅ Made optional with default null
 ) {
-    val isConsentGiven by viewModel.isConsentGiven.collectAsState()
-    val permissions by viewModel.permissions.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
 
-    // ✅ Permission launcher with detailed logging
+    // ✅ Use provided viewModel or create new one with factory
+    val actualViewModel: PrivacyConsentViewModel = viewModel ?: viewModel(
+        factory = PrivacyConsentViewModelFactory(databaseProvider)
+    )
+
+    val isConsentGiven by actualViewModel.isConsentGiven.collectAsState()
+    val permissions by actualViewModel.permissions.collectAsState()
+    val isLoading by actualViewModel.isLoading.collectAsState()
+    val scope = rememberCoroutineScope()
+
+    // ✅ Permission launcher with database save
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissionsMap ->
@@ -53,27 +66,49 @@ fun PrivacyConsentScreen(
         var allGranted = true
         var someGranted = false
 
+        // Collect permission results
+        val callLogGranted = permissionsMap[Manifest.permission.READ_CALL_LOG] ?: false
+        val smsGranted = permissionsMap[Manifest.permission.READ_SMS] ?: false
+        val storageGranted = permissionsMap[Manifest.permission.READ_EXTERNAL_STORAGE] ?: false
+        val phoneStateGranted = permissionsMap[Manifest.permission.READ_PHONE_STATE] ?: false
+
         permissionsMap.forEach { (permission, granted) ->
             println("$permission: $granted")
-            viewModel.updatePermissionGranted(permission, granted)
+            actualViewModel.updatePermissionGranted(permission, granted)
             if (granted) someGranted = true
             if (!granted) allGranted = false
         }
 
-        // ✅ Enhanced logging - shows what happened
         when {
             allGranted -> println("All permissions granted!")
             someGranted -> println("Some permissions granted, some denied")
             else -> println("All permissions denied")
         }
 
-        // ✅ Always proceed (partial permissions are ok for now)
+        // ✅ NEW: Save permissions using AuthenticationService
         scope.launch {
             try {
-                println("Permissions handled, proceeding to next screen")
+                println("Saving permissions to database...")
+
+                val authService = databaseProvider.authenticationService
+
+                // ✅ Save permissions using stored user ID
+                authService.updateUserPermissions(
+                    callLog = callLogGranted,
+                    messages = smsGranted,
+                    storage = storageGranted,
+                    deviceInfo = phoneStateGranted,
+                    consentGiven = true
+                )
+
+                println("Permissions saved successfully, proceeding to next screen")
                 onPermissionsGranted()
+
             } catch (e: Exception) {
-                println("Error navigating: ${e.message}")
+                println("❌ Error saving permissions: ${e.message}")
+                e.printStackTrace()
+                // Still navigate even if save fails
+                onPermissionsGranted()
             }
         }
     }
@@ -150,7 +185,7 @@ fun PrivacyConsentScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { viewModel.toggleConsent() }
+                .clickable { actualViewModel.toggleConsent() }
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -164,7 +199,7 @@ fun PrivacyConsentScreen(
             Spacer(modifier = Modifier.width(12.dp))
             Switch(
                 checked = isConsentGiven,
-                onCheckedChange = { viewModel.toggleConsent() },
+                onCheckedChange = { actualViewModel.toggleConsent() },
                 colors = SwitchDefaults.colors(
                     checkedThumbColor = Color.White,
                     checkedTrackColor = Color(0xFF57C6A9),
@@ -188,7 +223,6 @@ fun PrivacyConsentScreen(
                     return@Button
                 }
 
-                // ✅ Check if context is Activity
                 val activity = context as? Activity
                 if (activity == null) {
                     println("Error: Context is not an Activity")
@@ -197,7 +231,6 @@ fun PrivacyConsentScreen(
 
                 println("Activity found: $activity")
 
-                // Request the permissions
                 val permissionsToRequest = arrayOf(
                     Manifest.permission.READ_CALL_LOG,
                     Manifest.permission.READ_SMS,
@@ -228,6 +261,13 @@ fun PrivacyConsentScreen(
                 CircularProgressIndicator(
                     color = Color.White,
                     modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Saving...",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = Color.White
                 )
             } else {
                 Text(

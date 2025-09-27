@@ -25,36 +25,68 @@ import com.example.insightsapp.data.database.Survey
 @Preview(showBackground = true)
 @Composable
 fun SurveysScreenPreview() {
+    // ✅ Mock surveys with new Survey structure (updated field names)
     val mockSurveys = listOf(
         Survey(
-            id = "1",
+            surveyId = "survey_001", // ✅ Updated from 'id' to 'surveyId'
             title = "Brand 1 Survey",
             description = "Help us improve our product by sharing your thoughts.",
             brandName = "Brand 1",
             reward = 250.0,
-            duration = 3
+            durationMinutes = 3, // ✅ Updated from 'duration' to 'durationMinutes'
+            isActive = true
         ),
         Survey(
-            id = "2",
+            surveyId = "survey_002", // ✅ Updated from 'id' to 'surveyId'
             title = "Brand 2 Survey",
             description = "Discuss your preferences and help us improve our products.",
             brandName = "Brand 2",
             reward = 250.0,
-            duration = 5
+            durationMinutes = 5, // ✅ Updated from 'duration' to 'durationMinutes'
+            isActive = true
+        ),
+        Survey(
+            surveyId = "survey_003", // ✅ Added third survey for variety
+            title = "Brand 3 Survey",
+            description = "Share your thoughts on our latest products and services.",
+            brandName = "Brand 3",
+            reward = 500.0,
+            durationMinutes = 10,
+            isActive = true
         )
     )
 
-    SurveysScreen(
+    SurveysScreenContent(
         userName = "Jessica",
         surveys = mockSurveys,
-        onSurveyClick = {}
+        isLoading = false,
+        onSurveyClick = { survey ->
+            println("Survey clicked: ${survey.title}")
+        }
     )
 }
 
+// ✅ Main SurveysScreen that can integrate with ViewModel in the future
 @Composable
 fun SurveysScreen(
     userName: String,
     surveys: List<Survey>,
+    onSurveyClick: (Survey) -> Unit
+) {
+    SurveysScreenContent(
+        userName = userName,
+        surveys = surveys,
+        isLoading = false,
+        onSurveyClick = onSurveyClick
+    )
+}
+
+// ✅ Separate UI content component
+@Composable
+fun SurveysScreenContent(
+    userName: String,
+    surveys: List<Survey>,
+    isLoading: Boolean,
     onSurveyClick: (Survey) -> Unit
 ) {
     Column(
@@ -78,11 +110,16 @@ fun SurveysScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
+                Text(
+                    text = "${surveys.size} surveys available",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
             }
 
             // Profile Picture
             AsyncImage(
-                model = "https://via.placeholder.com/50", // Replace with actual user image
+                model = "https://via.placeholder.com/50",
                 contentDescription = "Profile Picture",
                 modifier = Modifier
                     .size(50.dp)
@@ -91,16 +128,59 @@ fun SurveysScreen(
             )
         }
 
-        // Surveys List
-        LazyColumn(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(surveys) { survey ->
-                SurveyCard(
-                    survey = survey,
-                    onSurveyClick = { onSurveyClick(survey) }
+        if (isLoading) {
+            // Loading state
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = Color(0xFF57C6A9)
                 )
+            }
+        } else if (surveys.isEmpty()) {
+            // Empty state
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(id = com.example.insightsapp.R.drawable.ic_survey),
+                    contentDescription = "No surveys",
+                    modifier = Modifier.size(48.dp),
+                    tint = Color.Gray
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "No surveys available",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "Check back later for new opportunities",
+                    fontSize = 14.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        } else {
+            // Surveys List
+            LazyColumn(
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(surveys) { survey ->
+                    SurveyCard(
+                        survey = survey,
+                        onSurveyClick = { onSurveyClick(survey) }
+                    )
+                }
             }
         }
     }
@@ -127,12 +207,20 @@ fun SurveyCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = survey.title,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = survey.title,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        text = "by ${survey.brandName}",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
 
                 // Reward Badge
                 Card(
@@ -162,7 +250,7 @@ fun SurveyCard(
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "${survey.duration} min",
+                    text = "${survey.durationMinutes} min", // ✅ Updated field name
                     fontSize = 14.sp,
                     color = Color.Gray
                 )

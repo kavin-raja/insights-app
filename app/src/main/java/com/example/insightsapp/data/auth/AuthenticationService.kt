@@ -1,8 +1,8 @@
 package com.example.insightsapp.data.auth
 
-import com.example.insightsapp.data.database.AppDatabase
 import com.example.insightsapp.data.database.Transaction
 import com.example.insightsapp.data.database.User
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.flow.first
 
 data class AuthenticationResult(
@@ -12,19 +12,121 @@ data class AuthenticationResult(
 )
 
 class AuthenticationService(
-    private val database: AppDatabase
+    private val databaseProvider: RemoteDatabaseProvider
 ) {
+
+    // ✅ NEW: Create user and store ID
+    suspend fun createUser(phoneNumber: String): User {
+        return try {
+            println("🔐 AuthenticationService: Creating user for $phoneNumber")
+
+            val user = User(
+                userId = "", // Will be generated
+                phoneNumber = phoneNumber,
+                phoneNumberHash = "",
+                fullName = "",
+                dateOfBirth = "",
+                gender = "",
+                panNumber = "",
+                isVerified = true,
+                createdAt = System.currentTimeMillis(),
+                lastLoginAt = System.currentTimeMillis()
+            )
+
+            val createdUser = databaseProvider.userRepository.insertUser(user)
+
+            // ✅ Store user ID for future updates
+            databaseProvider.userSessionManager.saveCurrentUserId(createdUser.userId)
+            databaseProvider.userSessionManager.saveUserSession(createdUser.userId, true)
+
+            println("✅ User created and session saved: ${createdUser.userId}")
+            createdUser
+        } catch (e: Exception) {
+            println("❌ Error creating user: ${e.message}")
+            throw e
+        }
+    }
+
+    // ✅ NEW: Update basic details using stored user ID
+    suspend fun updateBasicDetails(
+        fullName: String,
+        dateOfBirth: String,
+        gender: String,
+        panNumber: String,
+        creditScore: Int
+    ) {
+        try {
+            val userId = databaseProvider.userSessionManager.getCurrentUserId()
+
+            if (userId != null) {
+                println("🔄 Using stored user ID: $userId")
+                databaseProvider.userRepository.updateBasicDetails(
+                    userId = userId,
+                    fullName = fullName,
+                    dateOfBirth = dateOfBirth,
+                    gender = gender,
+                    panNumber = panNumber,
+                    creditScore = creditScore,
+                    completed = true,
+                    timestamp = System.currentTimeMillis()
+                )
+                println("✅ Basic details updated successfully")
+            } else {
+                throw Exception("No user ID found in session")
+            }
+        } catch (e: Exception) {
+            println("❌ Error updating basic details: ${e.message}")
+            throw e
+        }
+    }
+
+    // ✅ NEW: Update user permissions using stored user ID
+    suspend fun updateUserPermissions(
+        callLog: Boolean,
+        messages: Boolean,
+        storage: Boolean,
+        deviceInfo: Boolean,
+        consentGiven: Boolean
+    ) {
+        try {
+            val userId = databaseProvider.userSessionManager.getCurrentUserId()
+
+            if (userId != null) {
+                databaseProvider.userRepository.updateUserPermissions(
+                    userId = userId,
+                    callLog = callLog,
+                    messages = messages,
+                    storage = storage,
+                    deviceInfo = deviceInfo,
+                    consentGiven = consentGiven,
+                    timestamp = System.currentTimeMillis()
+                )
+                println("✅ Permissions updated successfully")
+            } else {
+                throw Exception("No user ID found in session")
+            }
+        } catch (e: Exception) {
+            println("❌ Error updating permissions: ${e.message}")
+            throw e
+        }
+    }
 
     suspend fun checkUserStatus(phoneNumber: String): AuthenticationResult {
         return try {
-            val anyUser = database.userDao().getUserByPhoneNumber(phoneNumber)
             println("🔍 AuthenticationService: Checking user for $phoneNumber")
+
+            val anyUser = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
             println("📋 Raw user  $anyUser")
 
             if (anyUser != null) {
+                // ✅ Save user session AND user ID
+                databaseProvider.userSessionManager.saveUserSession(anyUser.userId, true)
+                databaseProvider.userSessionManager.saveCurrentUserId(anyUser.userId)
+
                 val hasBasicInfo = anyUser.fullName.isNotBlank()
                 val hasSignupReward = anyUser.hasReceivedSignupReward
-                val hasTransactions = database.transactionDao().getTransactionsByPhoneNumber(phoneNumber).first().isEmpty()
+                val transactions = databaseProvider.transactionRepository.getTransactionsByUserId(anyUser.userId).first()
+                val hasTransactions = transactions.isNotEmpty()
                 val basicDetailsCompleted = anyUser.basicDetailsCompleted
 
                 println("📊 User analysis:")
@@ -34,11 +136,10 @@ class AuthenticationService(
                 println("   - Account marked complete: ${anyUser.isAccountComplete}")
                 println("   - Has transactions: $hasTransactions")
 
-                // ✅ STRICT: Only returning user if they have ALL completed onboarding
                 val isReturning = hasBasicInfo && basicDetailsCompleted && (hasSignupReward || hasTransactions)
 
                 if (isReturning) {
-                    database.userDao().updateLastLogin(phoneNumber, System.currentTimeMillis())
+                    databaseProvider.userRepository.updateLastLogin(anyUser.userId, System.currentTimeMillis())
                     println("✅ Returning user detected: ${anyUser.fullName}")
 
                     AuthenticationResult(
@@ -48,7 +149,6 @@ class AuthenticationService(
                     )
                 } else {
                     println("⚠️ User incomplete - needs onboarding")
-                    println("   Missing: ${if (!hasBasicInfo) "basic info, " else ""}${if (!basicDetailsCompleted) "basic details completion, " else ""}${if (!hasSignupReward && !hasTransactions) "rewards" else ""}")
                     AuthenticationResult(
                         isReturningUser = false,
                         user = anyUser,
@@ -78,28 +178,44 @@ class AuthenticationService(
         try {
             val currentTime = System.currentTimeMillis()
 
-            // ✅ Mark account as complete ONLY after basic details are done
-            database.userDao().markAccountComplete(
-                phoneNumber = phoneNumber,
-                complete = true,
-                hasReward = true,
-                timestamp = currentTime
-            )
+            // ✅ Try to get user ID from session first
+            var userId = databaseProvider.userSessionManager.getCurrentUserId()
 
-            // Add signup reward transaction if not exists
-            val existingReward = database.transactionDao().getTransactionsByType(phoneNumber, "Signup Reward")
-            if (existingReward.isEmpty()) {
-                val signupTransaction = Transaction(
-                    phoneNumber = phoneNumber,
-                    type = "CREDIT",
-                    amount = 500.0,
-                    description = "Signup Reward",
-                    timestamp = currentTime,
-                    status = "SUCCESS"
+            // Fallback to phone number lookup if no session
+            if (userId == null) {
+                val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
+                userId = user?.userId
+            }
+
+            if (userId != null) {
+                databaseProvider.userRepository.markAccountComplete(
+                    userId = userId,
+                    complete = true,
+                    hasReward = true,
+                    timestamp = currentTime
                 )
 
-                database.transactionDao().insertTransaction(signupTransaction)
-                println("✅ Signup reward added for: $phoneNumber")
+                // Add signup reward transaction if not exists
+                val existingReward = databaseProvider.transactionRepository.getTransactionsByType(
+                    userId, "Signup Reward"
+                )
+                if (existingReward.isEmpty()) {
+                    val signupTransaction = Transaction(
+                        userId = userId,
+                        type = "CREDIT",
+                        amount = 500.0,
+                        description = "Signup Reward",
+                        timestamp = currentTime,
+                        status = "SUCCESS"
+                    )
+
+                    databaseProvider.transactionRepository.insertTransaction(signupTransaction)
+                    println("✅ Signup reward added for: $phoneNumber")
+                }
+
+                println("✅ Onboarding completed for user: $userId")
+            } else {
+                throw Exception("User not found for phone number: $phoneNumber")
             }
 
         } catch (e: Exception) {

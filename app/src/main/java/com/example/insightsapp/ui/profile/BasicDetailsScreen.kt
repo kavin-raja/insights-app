@@ -19,6 +19,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.launch
 
 @Preview(showBackground = true)
 @Composable
@@ -245,9 +246,42 @@ fun BasicDetailsScreen(
         // Continue Button
         Button(
             onClick = {
+                // First fetch credit score, then save to database
                 viewModel.fetchCreditScore { success ->
                     if (success) {
-                        onDetailsCompleted()
+                        // Now save to database using AuthenticationService
+                        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+                            try {
+                                val databaseProvider = com.example.insightsapp.data.remote.RemoteDatabaseProvider.getInstance(context)
+                                val authService = databaseProvider.authenticationService
+
+                                // ✅ Save basic details using stored user ID
+                                authService.updateBasicDetails(
+                                    fullName = state.fullName,
+                                    dateOfBirth = state.dateOfBirth,
+                                    gender = state.selectedGender,
+                                    panNumber = state.panNumber,
+                                    creditScore = state.creditScore
+                                )
+
+                                println("✅ Basic details saved and credit score fetched: ${state.creditScore}")
+
+                                // Complete onboarding
+                                val phoneNumber = databaseProvider.userSessionManager.getPhoneNumber()
+                                if (phoneNumber != null) {
+                                    authService.completeUserOnboarding(phoneNumber)
+                                    println("✅ Onboarding completed for $phoneNumber")
+                                }
+
+                                onDetailsCompleted()
+
+                            } catch (e: Exception) {
+                                println("❌ Error saving basic details: ${e.message}")
+                                e.printStackTrace()
+                                // Still navigate even if save fails
+                                onDetailsCompleted()
+                            }
+                        }
                     }
                 }
             },

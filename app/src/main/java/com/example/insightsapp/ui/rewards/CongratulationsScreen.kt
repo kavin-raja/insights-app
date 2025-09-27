@@ -19,7 +19,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.insightsapp.data.auth.AuthenticationService
-import com.example.insightsapp.data.database.AppDatabase
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.launch
 
 @Preview(showBackground = true)
@@ -39,8 +39,8 @@ fun CongratulationsScreen(
     onGoToWallet: () -> Unit
 ) {
     val context = LocalContext.current
-    val database = AppDatabase.getDatabase(context)
-    val authService = remember { AuthenticationService(database) }
+    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
+    val authService = remember { AuthenticationService(databaseProvider) }
     val scope = rememberCoroutineScope()
 
     // ✅ Complete onboarding when this screen is reached

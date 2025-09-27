@@ -27,8 +27,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.insightsapp.data.auth.AuthenticationService
-import com.example.insightsapp.data.database.AppDatabase
 import com.example.insightsapp.data.database.User
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.launch
 
 @Preview(showBackground = true)
@@ -56,8 +56,8 @@ fun OtpVerificationScreen(
     val context = LocalContext.current
     val activity = context as? Activity
 
-    val database = AppDatabase.getDatabase(context)
-    val authService = remember { AuthenticationService(database) }
+    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
+    val authService = remember { AuthenticationService(databaseProvider) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -153,32 +153,23 @@ fun OtpVerificationScreen(
 
                         scope.launch {
                             try {
-                                // ✅ Create or update user in database - DON'T mark as complete yet
-                                val existingUser = database.userDao().getUserByPhoneNumber(phoneNumber)
-                                if (existingUser == null) {
-                                    // Create new user - NOT COMPLETE
-                                    val newUser = User(
-                                        phoneNumber = phoneNumber,
-                                        isVerified = true,
-                                        createdAt = System.currentTimeMillis(),
-                                        lastLoginAt = System.currentTimeMillis()
-                                        // ✅ DON'T SET: isAccountComplete=true, hasReceivedSignupReward=true
-                                    )
-                                    database.userDao().insertUser(newUser)
-                                    println("✅ New user created: $phoneNumber")
-                                } else {
-                                    // Update existing user
-                                    database.userDao().updateVerificationStatus(phoneNumber, true)
-                                    database.userDao().updateLastLogin(phoneNumber, System.currentTimeMillis())
-                                    println("✅ Existing user updated: $phoneNumber")
-                                }
-
-                                // ✅ Now check user status for returning user detection
+                                // ✅ Use AuthenticationService directly
                                 val authResult = authService.checkUserStatus(phoneNumber)
-                                println("✅ User status: isReturningUser = ${authResult.isReturningUser}")
 
-                                // ✅ Navigate based on user status
-                                onOtpVerified(authResult.isReturningUser)
+                                if (authResult.user == null) {
+                                    // Create new user and store ID
+                                    val newUser = authService.createUser(phoneNumber)
+                                    println("✅ New user created: ${newUser.phoneNumber}")
+
+                                    // Navigate to onboarding
+                                    onOtpVerified(false) // New user = false
+                                } else {
+                                    // Existing user - store ID and check completion
+                                    println("✅ User exists: ${authResult.user.fullName}")
+
+                                    // Navigate based on completion status
+                                    onOtpVerified(authResult.shouldSkipOnboarding)
+                                }
 
                             } catch (e: Exception) {
                                 println("❌ Error handling user: ${e.message}")

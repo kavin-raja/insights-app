@@ -11,58 +11,99 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.insightsapp.data.database.Transaction
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import java.text.SimpleDateFormat
 import java.util.*
 
 @Preview(showBackground = true)
 @Composable
 fun WalletScreenPreview() {
+    // ✅ Mock transactions with new Transaction structure (userId instead of phoneNumber)
     val mockTransactions = listOf(
         Transaction(
-            id = 1,
-            phoneNumber = "+919876543210",
+            transactionId = "trans_001",
+            userId = "user_123", // ✅ Updated to userId
             type = "CREDIT",
             amount = 500.0,
             description = "Signup Reward",
-            timestamp = System.currentTimeMillis()
+            timestamp = System.currentTimeMillis(),
+            status = "SUCCESS"
         ),
         Transaction(
-            id = 2,
-            phoneNumber = "+919876543210",
+            transactionId = "trans_002",
+            userId = "user_123", // ✅ Updated to userId
             type = "CREDIT",
             amount = 100.0,
             description = "Brand 2 Survey Reward",
-            timestamp = System.currentTimeMillis() - 86400000
+            timestamp = System.currentTimeMillis() - 86400000,
+            status = "SUCCESS"
         ),
         Transaction(
-            id = 3,
-            phoneNumber = "+919876543210",
+            transactionId = "trans_003",
+            userId = "user_123", // ✅ Updated to userId
             type = "DEBIT",
             amount = 200.0,
             description = "Gift Card Redemption",
-            timestamp = System.currentTimeMillis() - 172800000
+            timestamp = System.currentTimeMillis() - 172800000,
+            status = "SUCCESS"
         )
     )
 
-    WalletScreen(
+    // ✅ Use the UI-only version for preview
+    WalletScreenContent(
         currentBalance = 500.0,
         transactions = mockTransactions,
+        isLoading = false,
         onWithdrawClick = {},
         onRedeemClick = {}
     )
 }
 
+// ✅ Main WalletScreen that integrates with ViewModel
 @Composable
 fun WalletScreen(
+    phoneNumber: String
+) {
+    val context = LocalContext.current
+    // ✅ Use RemoteDatabaseProvider instead of AppDatabase
+    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
+
+    val viewModel: WalletViewModel = viewModel(
+        factory = WalletViewModelFactory(databaseProvider, phoneNumber)
+    )
+
+    val state by viewModel.state.collectAsState()
+
+    WalletScreenContent(
+        currentBalance = state.currentBalance,
+        transactions = state.transactions,
+        isLoading = state.isLoading,
+        onWithdrawClick = {
+            // TODO: Implement withdraw functionality
+            println("Withdraw clicked for $phoneNumber")
+        },
+        onRedeemClick = {
+            // TODO: Implement redeem functionality
+            println("Redeem clicked for $phoneNumber")
+        }
+    )
+}
+
+// ✅ Separate UI content component (used by both main screen and preview)
+@Composable
+fun WalletScreenContent(
     currentBalance: Double,
     transactions: List<Transaction>,
+    isLoading: Boolean,
     onWithdrawClick: () -> Unit,
     onRedeemClick: () -> Unit
 ) {
@@ -105,128 +146,164 @@ fun WalletScreen(
             )
         }
 
-        // Balance Card
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+        if (isLoading) {
+            // Loading state
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "Current Balance",
-                    fontSize = 16.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-
-                Text(
-                    text = "₹${String.format("%.0f", currentBalance)}",
-                    fontSize = 36.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                // Cash/Points Toggle
-                Row(
-                    modifier = Modifier
-                        .background(
-                            Color.Gray.copy(alpha = 0.1f),
-                            RoundedCornerShape(24.dp)
-                        )
-                        .padding(4.dp)
-                ) {
-                    listOf("Cash", "Points").forEach { tab ->
-                        Text(
-                            text = tab,
-                            modifier = Modifier
-                                .clickable { selectedTab = tab }
-                                .background(
-                                    if (selectedTab == tab) Color(0xFF57C6A9) else Color.Transparent,
-                                    RoundedCornerShape(20.dp)
-                                )
-                                .padding(horizontal = 24.dp, vertical = 8.dp),
-                            color = if (selectedTab == tab) Color.White else Color.Gray,
-                            fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal
-                        )
-                    }
-                }
-            }
-        }
-
-        // Action Buttons
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Button(
-                onClick = onWithdrawClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF57C6A9))
-            ) {
-                Icon(
-                    painter = painterResource(id = com.example.insightsapp.R.drawable.ic_arrow_up),
-                    contentDescription = "Withdraw",
-                    modifier = Modifier.size(20.dp),
-                    tint = Color.White
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Withdraw",
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
-                )
-            }
-
-            OutlinedButton(
-                onClick = onRedeemClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF57C6A9))
-            ) {
-                Icon(
-                    painter = painterResource(id = com.example.insightsapp.R.drawable.ic_coin),
-                    contentDescription = "Redeem",
-                    modifier = Modifier.size(20.dp),
-                    tint = Color(0xFF57C6A9)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Redeem",
-                    fontWeight = FontWeight.Bold,
+                CircularProgressIndicator(
                     color = Color(0xFF57C6A9)
                 )
             }
-        }
+        } else {
+            // Balance Card
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "Current Balance",
+                        fontSize = 16.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
 
-        // Recent Transactions
-        Text(
-            text = "Recent Transactions",
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
-        )
+                    Text(
+                        text = "₹${String.format("%.0f", currentBalance)}",
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
 
-        LazyColumn(
-            modifier = Modifier.padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(transactions) { transaction ->
-                TransactionCard(transaction = transaction)
+                    // Cash/Points Toggle
+                    Row(
+                        modifier = Modifier
+                            .background(
+                                Color.Gray.copy(alpha = 0.1f),
+                                RoundedCornerShape(24.dp)
+                            )
+                            .padding(4.dp)
+                    ) {
+                        listOf("Cash", "Points").forEach { tab ->
+                            Text(
+                                text = tab,
+                                modifier = Modifier
+                                    .clickable { selectedTab = tab }
+                                    .background(
+                                        if (selectedTab == tab) Color(0xFF57C6A9) else Color.Transparent,
+                                        RoundedCornerShape(20.dp)
+                                    )
+                                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                                color = if (selectedTab == tab) Color.White else Color.Gray,
+                                fontWeight = if (selectedTab == tab) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Action Buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = onWithdrawClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF57C6A9))
+                ) {
+                    Icon(
+                        painter = painterResource(id = com.example.insightsapp.R.drawable.ic_arrow_up),
+                        contentDescription = "Withdraw",
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Withdraw",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onRedeemClick,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF57C6A9))
+                ) {
+                    Icon(
+                        painter = painterResource(id = com.example.insightsapp.R.drawable.ic_coin),
+                        contentDescription = "Redeem",
+                        modifier = Modifier.size(20.dp),
+                        tint = Color(0xFF57C6A9)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Redeem",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF57C6A9)
+                    )
+                }
+            }
+
+            // Recent Transactions
+            Text(
+                text = "Recent Transactions",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)
+            )
+
+            if (transactions.isEmpty()) {
+                // Empty state
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        painter = painterResource(id = com.example.insightsapp.R.drawable.ic_wallet_nav),
+                        contentDescription = "No transactions",
+                        modifier = Modifier.size(48.dp),
+                        tint = Color.Gray
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "No transactions yet",
+                        fontSize = 16.sp,
+                        color = Color.Gray,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(transactions) { transaction ->
+                        TransactionCard(transaction = transaction)
+                    }
+                }
             }
         }
     }

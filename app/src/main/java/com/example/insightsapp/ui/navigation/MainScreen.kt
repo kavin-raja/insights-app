@@ -10,7 +10,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.insightsapp.data.database.AppDatabase
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import com.example.insightsapp.ui.main.MainViewModel
 import com.example.insightsapp.ui.main.MainViewModelFactory
 import com.example.insightsapp.ui.profile.ProfileScreen
@@ -29,10 +29,10 @@ fun MainScreen(
     phoneNumber: String = "+919876543210"
 ) {
     val context = LocalContext.current
-    val database = AppDatabase.getDatabase(context)
+    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
 
     val viewModel: MainViewModel = viewModel(
-        factory = MainViewModelFactory(database, phoneNumber)
+        factory = MainViewModelFactory(databaseProvider, phoneNumber)
     )
 
     val uiState by viewModel.uiState.collectAsState()
@@ -128,15 +128,17 @@ fun MainScreen(
                         // ✅ Better name extraction logic
                         userName = getFirstName(uiState.user?.fullName),
                         surveys = uiState.surveys,
-                        onSurveyClick = { /* Handle survey click */ }
+                        onSurveyClick = { survey ->
+                            println("Survey clicked: ${survey.title}")
+                            // TODO: Navigate to survey detail screen
+                        }
                     )
                     1 -> WalletScreen(
-                        currentBalance = uiState.walletBalance,
-                        transactions = uiState.transactions,
-                        onWithdrawClick = { /* Handle withdraw */ },
-                        onRedeemClick = { /* Handle redeem */ }
+                        phoneNumber = phoneNumber // ✅ Pass phoneNumber, not individual parameters
                     )
-                    2 -> ProfileScreen(phoneNumber = phoneNumber)
+                    2 -> ProfileScreen(
+                        phoneNumber = phoneNumber // ✅ Pass phoneNumber, not user object
+                    )
                 }
             }
         }
@@ -151,30 +153,5 @@ private fun getFirstName(fullName: String?): String {
         else -> fullName
     }.also {
         println("✅ Displaying name: '$it' from fullName: '$fullName'")
-    }
-}
-
-
-@Composable
-fun ProfileScreen(user: com.example.insightsapp.data.database.User?) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = androidx.compose.ui.Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Profile Screen",
-                style = MaterialTheme.typography.headlineMedium
-            )
-
-            user?.let {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Name: ${it.fullName}")
-                Text("Phone: ${it.phoneNumber}")
-                Text("Credit Score: ${it.creditScore}")
-            }
-        }
     }
 }

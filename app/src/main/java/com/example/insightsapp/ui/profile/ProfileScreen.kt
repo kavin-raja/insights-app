@@ -20,8 +20,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.insightsapp.data.database.AppDatabase
 import com.example.insightsapp.data.database.User
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 
 @Preview(showBackground = true)
 @Composable
@@ -36,10 +36,10 @@ fun ProfileScreen(
     phoneNumber: String
 ) {
     val context = LocalContext.current
-    val database = AppDatabase.getDatabase(context)
+    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
 
     val viewModel: ProfileViewModel = viewModel(
-        factory = ProfileViewModelFactory(database, phoneNumber)
+        factory = ProfileViewModelFactory(databaseProvider, phoneNumber)
     )
 
     val uiState by viewModel.uiState.collectAsState()

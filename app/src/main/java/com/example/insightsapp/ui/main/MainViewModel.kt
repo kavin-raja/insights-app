@@ -3,10 +3,10 @@ package com.example.insightsapp.ui.main
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.insightsapp.data.auth.AuthenticationService
-import com.example.insightsapp.data.database.AppDatabase
 import com.example.insightsapp.data.database.Survey
 import com.example.insightsapp.data.database.Transaction
 import com.example.insightsapp.data.database.User
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -21,7 +21,7 @@ data class MainUIState(
 )
 
 class MainViewModel(
-    private val database: AppDatabase,
+    private val databaseProvider: RemoteDatabaseProvider,
     private val phoneNumber: String
 ) : ViewModel() {
 
@@ -39,40 +39,36 @@ class MainViewModel(
             try {
                 println("🔄 MainViewModel: Loading data for $phoneNumber")
 
-                // ✅ Load user information first
-                val user = database.userDao().getUserByPhoneNumber(phoneNumber)
+                // ✅ Use repository instead of direct data source
+                val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
                 println("👤 User loaded: ${user?.fullName} (${user?.phoneNumber})")
 
-                // ✅ Force collect transactions immediately, not as Flow
-                val transactions = mutableListOf<Transaction>()
-                database.transactionDao().getTransactionsByPhoneNumber(phoneNumber).collect { transactionList ->
-                    transactions.clear()
-                    transactions.addAll(transactionList)
+                if (user != null) {
+                    // Load transactions
+                    databaseProvider.transactionRepository.getTransactionsByUserId(user.userId)
+                        .collect { transactions ->
+                            val balance = calculateBalance(transactions)
+                            println("💰 Balance calculated: $balance from ${transactions.size} transactions")
 
-                    val balance = calculateBalance(transactions)
-                    println("💰 Balance calculated: $balance from ${transactions.size} transactions")
+                            // Load surveys
+                            databaseProvider.surveyRepository.getActiveSurveys().collect { surveys ->
+                                println("📋 Surveys loaded: ${surveys.size} items")
 
-                    // ✅ Load surveys synchronously
-                    val surveys = mutableListOf<Survey>()
-                    database.surveyDao().getActiveSurveys().collect { surveyList ->
-                        surveys.clear()
-                        surveys.addAll(surveyList)
+                                _uiState.value = MainUIState(
+                                    user = user,
+                                    walletBalance = balance,
+                                    transactions = transactions,
+                                    surveys = surveys,
+                                    isLoading = false
+                                )
 
-                        println("📋 Surveys loaded: ${surveys.size} items")
-
-                        // ✅ Update state with all data
-                        _uiState.value = MainUIState(
-                            user = user,
-                            walletBalance = balance,
-                            transactions = transactions.toList(),
-                            surveys = surveys.toList(),
-                            isLoading = false
-                        )
-
-                        println("✅ MainViewModel: State updated successfully")
-                        return@collect // Stop collecting to avoid infinite loop
-                    }
-                    return@collect
+                                println("✅ MainViewModel: State updated successfully")
+                                return@collect
+                            }
+                            return@collect
+                        }
+                } else {
+                    _uiState.value = _uiState.value.copy(isLoading = false)
                 }
             } catch (e: Exception) {
                 println("❌ Error loading user  ${e.message}")
@@ -95,10 +91,9 @@ class MainViewModel(
     fun addSignupReward() {
         viewModelScope.launch {
             try {
-                val authService = AuthenticationService(database)
+                val authService = AuthenticationService(databaseProvider)
                 authService.completeUserOnboarding(phoneNumber)
 
-                // ✅ Reload data after adding reward
                 loadUserData()
 
             } catch (e: Exception) {
@@ -111,54 +106,54 @@ class MainViewModel(
     fun initializeSampleSurveys() {
         viewModelScope.launch {
             try {
-                // ✅ Get surveys count directly, not via Flow
-                val existingSurveys = database.surveyDao().getAllSurveysCount()
-                println("🔍 Existing surveys count: $existingSurveys")
+                // ✅ Use repository instead of direct data source
+                val existingSurveysCount = databaseProvider.surveyRepository.getAllSurveysCount()
+                println("🔍 Existing surveys count: $existingSurveysCount")
 
-                if (existingSurveys == 0) {
+                if (existingSurveysCount == 0) {
                     val sampleSurveys = listOf(
                         Survey(
-                            id = "survey_001",
+                            surveyId = "survey_001",
                             title = "Brand 1 Survey",
                             description = "Help us improve our product by sharing your thoughts.",
                             brandName = "Brand 1",
                             reward = 250.0,
-                            duration = 3,
+                            durationMinutes = 3,
                             isActive = true
                         ),
                         Survey(
-                            id = "survey_002",
+                            surveyId = "survey_002",
                             title = "Brand 2 Survey",
                             description = "Discuss your preferences and help us improve our products.",
                             brandName = "Brand 2",
                             reward = 250.0,
-                            duration = 5,
+                            durationMinutes = 5,
                             isActive = true
                         ),
                         Survey(
-                            id = "survey_003",
+                            surveyId = "survey_003",
                             title = "Brand 3 Survey",
                             description = "Share your thoughts on our latest products and services.",
                             brandName = "Brand 3",
                             reward = 500.0,
-                            duration = 10,
+                            durationMinutes = 10,
                             isActive = true
                         ),
                         Survey(
-                            id = "survey_004",
+                            surveyId = "survey_004",
                             title = "Brand 4 Survey",
                             description = "Provide feedback on our latest features.",
                             brandName = "Brand 4",
                             reward = 100.0,
-                            duration = 4,
+                            durationMinutes = 4,
                             isActive = true
                         )
                     )
 
-                    database.surveyDao().insertAllSurveys(sampleSurveys)
+                    databaseProvider.surveyRepository.insertAllSurveys(sampleSurveys)
                     println("✅ Sample surveys initialized: ${sampleSurveys.size} surveys")
                 } else {
-                    println("✅ Surveys already exist: $existingSurveys surveys")
+                    println("✅ Surveys already exist: $existingSurveysCount surveys")
                 }
             } catch (e: Exception) {
                 println("❌ Error initializing surveys: ${e.message}")
@@ -166,5 +161,4 @@ class MainViewModel(
             }
         }
     }
-
 }
