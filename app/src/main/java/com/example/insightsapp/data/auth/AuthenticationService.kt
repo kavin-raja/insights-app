@@ -3,6 +3,7 @@ package com.example.insightsapp.data.auth
 import com.example.insightsapp.data.database.Transaction
 import com.example.insightsapp.data.database.User
 import com.example.insightsapp.data.remote.RemoteDatabaseProvider
+import com.example.insightsapp.data.remote.SupabaseHttpClient
 import kotlinx.coroutines.flow.first
 
 data class AuthenticationResult(
@@ -116,27 +117,42 @@ class AuthenticationService(
             println("🔍 AuthenticationService: Checking user for $phoneNumber")
 
             val anyUser = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
-            println("📋 Raw user  $anyUser")
+            println("📋 Raw user: $anyUser")
 
             if (anyUser != null) {
                 // ✅ Save user session AND user ID
-                databaseProvider.userSessionManager.saveUserSession(anyUser.userId, true)
+                databaseProvider.userSessionManager.saveUserSession(anyUser.phoneNumber, true)
                 databaseProvider.userSessionManager.saveCurrentUserId(anyUser.userId)
 
                 val hasBasicInfo = anyUser.fullName.isNotBlank()
                 val hasSignupReward = anyUser.hasReceivedSignupReward
-                val transactions = databaseProvider.transactionRepository.getTransactionsByUserId(anyUser.userId).first()
-                val hasTransactions = transactions.isNotEmpty()
                 val basicDetailsCompleted = anyUser.basicDetailsCompleted
+                val isAccountComplete = anyUser.isAccountComplete
+
+                // ✅ Simple transaction check without Flow - use HTTP client directly
+                val hasTransactions = try {
+                    val httpClient = SupabaseHttpClient.getInstance()
+                    val supabaseTransactions = httpClient.selectTransactions(
+                        filter = "user_id=eq.${anyUser.userId}",
+                        limit = 1
+                    )
+                    val transactionCount = supabaseTransactions.size
+                    println("💰 Found $transactionCount transactions for user ${anyUser.userId}")
+                    transactionCount > 0
+                } catch (e: Exception) {
+                    println("⚠️ Transaction check failed, assuming no transactions: ${e.message}")
+                    false
+                }
 
                 println("📊 User analysis:")
                 println("   - Has basic info: $hasBasicInfo")
                 println("   - Basic details completed: $basicDetailsCompleted")
                 println("   - Has signup reward: $hasSignupReward")
-                println("   - Account marked complete: ${anyUser.isAccountComplete}")
+                println("   - Account marked complete: $isAccountComplete")
                 println("   - Has transactions: $hasTransactions")
 
-                val isReturning = hasBasicInfo && basicDetailsCompleted && (hasSignupReward || hasTransactions)
+                // ✅ Updated logic for returning user detection
+                val isReturning = hasBasicInfo && basicDetailsCompleted && isAccountComplete && (hasSignupReward || hasTransactions)
 
                 if (isReturning) {
                     databaseProvider.userRepository.updateLastLogin(anyUser.userId, System.currentTimeMillis())
@@ -149,6 +165,7 @@ class AuthenticationService(
                     )
                 } else {
                     println("⚠️ User incomplete - needs onboarding")
+                    println("   - Reason: basicInfo=$hasBasicInfo, completed=$basicDetailsCompleted, accountComplete=$isAccountComplete, hasReward=$hasSignupReward")
                     AuthenticationResult(
                         isReturningUser = false,
                         user = anyUser,
@@ -173,6 +190,8 @@ class AuthenticationService(
             )
         }
     }
+
+
 
     suspend fun completeUserOnboarding(phoneNumber: String) {
         try {

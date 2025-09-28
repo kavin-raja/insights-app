@@ -147,28 +147,30 @@ fun OtpVerificationScreen(
                 println("🔘 Verify button clicked")
                 viewModel.verifyOtp(phoneNumber, otpValue) { success ->
                     println("📞 OTP verification callback received: $success")
-
                     if (success) {
                         println("✅ OTP verification successful, creating user and checking status...")
 
                         scope.launch {
                             try {
-                                // ✅ Use AuthenticationService directly
+                                // ✅ Check user status first
                                 val authResult = authService.checkUserStatus(phoneNumber)
 
-                                if (authResult.user == null) {
-                                    // Create new user and store ID
-                                    val newUser = authService.createUser(phoneNumber)
-                                    println("✅ New user created: ${newUser.phoneNumber}")
-
-                                    // Navigate to onboarding
-                                    onOtpVerified(false) // New user = false
-                                } else {
-                                    // Existing user - store ID and check completion
+                                if (authResult.user != null) {
+                                    // ✅ User exists - check if they should skip onboarding
                                     println("✅ User exists: ${authResult.user.fullName}")
 
-                                    // Navigate based on completion status
-                                    onOtpVerified(authResult.shouldSkipOnboarding)
+                                    if (authResult.shouldSkipOnboarding) {
+                                        println("✅ Returning user - going to main screen")
+                                        onOtpVerified(true) // Navigate to main screen
+                                    } else {
+                                        println("✅ User exists but incomplete - continuing onboarding")
+                                        onOtpVerified(false) // Continue onboarding
+                                    }
+                                } else {
+                                    // ✅ No user exists - create new user
+                                    val newUser = authService.createUser(phoneNumber)
+                                    println("✅ New user created: ${newUser.phoneNumber}")
+                                    onOtpVerified(false) // New user = go to onboarding
                                 }
 
                             } catch (e: Exception) {
@@ -178,7 +180,8 @@ fun OtpVerificationScreen(
                                 onOtpVerified(false)
                             }
                         }
-                    } else {
+                    }
+                    else {
                         println("❌ OTP verification failed")
                     }
                 }

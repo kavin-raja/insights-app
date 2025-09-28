@@ -255,7 +255,18 @@ class SupabaseHttpClient {
             println("🔄 Updating user with filter: $filter")
             println("🔄 Updates: $updates")
 
-            val url = "$baseUrl/users?$filter"
+            // ✅ Extract user_id from filter for primary key updates
+            val userId = if (filter.contains("user_id=eq.")) {
+                filter.substringAfter("user_id=eq.").removeSurrounding("\"")
+            } else null
+
+            val url = if (userId != null) {
+                // ✅ Use primary key syntax for user_id updates
+                "$baseUrl/users?user_id=eq.$userId"
+            } else {
+                "$baseUrl/users?$filter"
+            }
+
             println("🌐 Update URL: $url")
 
             // ✅ Create JSON manually to avoid LinkedHashMap serialization issues
@@ -287,12 +298,32 @@ class SupabaseHttpClient {
             println("📥 Update Response: ${response.status}")
             println("📦 Update Body: $responseText")
 
-            if (response.status.isSuccess() || response.status == HttpStatusCode.NoContent) {
-                println("✅ User updated successfully")
-                true
-            } else {
-                println("❌ Update failed: $responseText")
-                false
+            when (response.status) {
+                HttpStatusCode.OK -> {
+                    println("✅ User updated successfully (200 OK)")
+                    true
+                }
+                HttpStatusCode.NoContent -> {
+                    // ✅ Check if it's actually no content or no rows affected
+                    if (userId != null) {
+                        // Verify the update by checking if user exists
+                        val verification = selectUsers(filter = "user_id=eq.$userId", limit = 1)
+                        if (verification.isNotEmpty()) {
+                            println("✅ User updated successfully (204 with verification)")
+                            true
+                        } else {
+                            println("❌ Update failed: User not found with ID: $userId")
+                            false
+                        }
+                    } else {
+                        println("✅ User updated successfully (204 No Content)")
+                        true
+                    }
+                }
+                else -> {
+                    println("❌ Update failed: $responseText")
+                    false
+                }
             }
         } catch (e: Exception) {
             println("❌ Error updating user: ${e.message}")
@@ -300,6 +331,7 @@ class SupabaseHttpClient {
             false
         }
     }
+
 
 
 
