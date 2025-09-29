@@ -266,54 +266,84 @@ class SupabaseHttpClient {
         couponId: String,
         costPts: Int
     ): Int {
-        // 1️⃣  pull coupon price & user balance in one request batch
-        val user = selectUsers(filter = "user_id=eq.$userId", limit = 1).firstOrNull()
-            ?: throw Exception("User not found")
+        try {
+            println("💳 Starting coupon redemption: $couponId for user: $userId, cost: $costPts")
 
-        val couponResponse: List<Map<String, Int>> = client.get("$baseUrl/coupons") {
-            with(this@SupabaseHttpClient) { supabaseHeaders() }
-            parameter("select", "price_points")
-            parameter("coupon_id", "eq.$couponId")
-        }.body()
+            // ✅ Use proper response type - String instead of Map
+            val transactionResponse: String = client.get("$baseUrl/transactions") {
+                headers {
+                    append("apikey", SupabaseConfig.SUPABASE_ANON_KEY)
+                    append("Authorization", "Bearer ${SupabaseConfig.SUPABASE_ANON_KEY}")
+                    append("Content-Profile", "public")
+                }
+                parameter("select", "type,amount")
+                parameter("user_id", "eq.$userId")
+            }.bodyAsText()  // ✅ Get as text first
 
-        val coupon = couponResponse.firstOrNull() ?: throw Exception("Coupon not found")
+            // ✅ Parse manually to avoid LinkedHashMap issues
+            val transactions: List<TxRow> = json.decodeFromString(transactionResponse)
 
-        val current = user.points
-        val price = coupon["price_points"] ?: costPts
+            val currentBalance = transactions.sumOf { transaction ->
+                if (transaction.type.equals("CREDIT", true)) transaction.amount else -transaction.amount
+            }.toInt()
 
-        if (current < price) throw Exception("INSUFFICIENT_BALANCE")
+            println("💰 Current balance from transactions: $currentBalance, Required: $costPts")
 
-        // 2️⃣  Insert into user_coupons
-        client.post("$baseUrl/user_coupons") {
-            with(this@SupabaseHttpClient) { supabaseHeaders() }
-            header("Prefer", "resolution=merge-duplicates")
-            contentType(ContentType.Application.Json)
-            setBody(mapOf("user_id" to userId, "coupon_id" to couponId))
+            if (currentBalance < costPts) {
+                throw Exception("INSUFFICIENT_BALANCE: Have $currentBalance, need $costPts")
+            }
+
+            // ✅ Insert into user_coupons - fix the table name and structure
+            val couponResult = client.post("$baseUrl/user_coupons") {
+                headers {
+                    append("apikey", SupabaseConfig.SUPABASE_ANON_KEY)
+                    append("Authorization", "Bearer ${SupabaseConfig.SUPABASE_ANON_KEY}")
+                    append("Content-Profile", "public")
+                }
+                header("Prefer", "resolution=merge-duplicates")
+                contentType(ContentType.Application.Json)
+                // ✅ Use JSON string instead of Map to avoid LinkedHashMap error
+                setBody("""{"user_id":"$userId","coupon_id":"$couponId"}""")
+            }
+
+            println("✅ User coupon result: ${couponResult.status}")
+
+            // ✅ Insert DEBIT transaction using JSON string
+            val txnResult = client.post("$baseUrl/transactions") {
+                headers {
+                    append("apikey", SupabaseConfig.SUPABASE_ANON_KEY)
+                    append("Authorization", "Bearer ${SupabaseConfig.SUPABASE_ANON_KEY}")
+                    append("Content-Profile", "public")
+                }
+                contentType(ContentType.Application.Json)
+                // ✅ Use JSON string instead of Map
+                setBody("""
+                {
+                    "user_id":"$userId",
+                    "type":"DEBIT",
+                    "amount":$costPts,
+                    "description":"Coupon: $couponId",
+                    "timestamp":${System.currentTimeMillis()},
+                    "status":"SUCCESS"
+                }
+            """.trimIndent())
+            }
+
+            println("✅ Transaction result: ${txnResult.status}")
+
+            val newBalance = currentBalance - costPts
+            println("✅ Coupon redeemed successfully. New balance: $newBalance")
+
+            return newBalance
+
+        } catch (e: Exception) {
+            println("❌ Coupon redemption failed: ${e.message}")
+            throw e
         }
-
-        // 3️⃣  Insert DEBIT transaction
-        client.post("$baseUrl/transactions") {
-            with(this@SupabaseHttpClient) { supabaseHeaders() }
-            contentType(ContentType.Application.Json)
-            setBody(
-                mapOf(
-                    "user_id" to userId,
-                    "type" to "DEBIT",
-                    "amount" to price,
-                    "description" to "Coupon: $couponId"
-                )
-            )
-        }
-
-        // 4️⃣  Decrement points
-        client.patch("$baseUrl/users?user_id=eq.$userId") {
-            with(this@SupabaseHttpClient) { supabaseHeaders() }
-            contentType(ContentType.Application.Json)
-            setBody("""{"points":${current - price}}""")
-        }
-
-        return current - price
     }
+
+
+
 
     private fun buildUrl(table: String, filter: String?, limit: Int?, order: String?): String {
         return buildString {

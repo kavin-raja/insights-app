@@ -71,26 +71,23 @@ fun WalletScreenPreview() {
 @Composable
 fun WalletScreen(
     phoneNumber: String,
-    onRedeemClick: () -> Unit = {}
+    onRedeemClick: () -> Unit,
+    currentBalance: Double = 0.0,
+    transactions: List<Transaction> = emptyList(),
+    isLoading: Boolean = false
 ) {
-    val context = LocalContext.current
-    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
+    // ✅ Add debug logs to see if data is received
+    println("📱 WalletScreen: Received balance=$currentBalance, transactions=${transactions.size}")
 
-    val viewModel: WalletViewModel = viewModel(
-        factory = WalletViewModelFactory(databaseProvider, phoneNumber)
-    )
-
-    val state by viewModel.state.collectAsState()
-
+    // ✅ Actually call the content component!
     WalletScreenContent(
-        currentBalance = state.currentBalance,
-        transactions = state.transactions,
-        isLoading = state.isLoading,
+        currentBalance = currentBalance,
+        transactions = transactions,
+        isLoading = isLoading,
         onWithdrawClick = {
+            println("💸 Withdraw clicked")
             // TODO: Implement withdraw functionality
-            println("Withdraw clicked for $phoneNumber")
         },
-        // CHANGED: thread parent callback through to the UI button
         onRedeemClick = onRedeemClick
     )
 }

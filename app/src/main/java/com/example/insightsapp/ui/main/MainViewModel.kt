@@ -161,4 +161,9 @@ class MainViewModel(
             }
         }
     }
+
+    fun onCouponPurchased(couponCost: Double) {
+        // Refresh user data to get updated transactions
+        loadUserData()
+    }
 }

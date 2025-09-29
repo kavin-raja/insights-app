@@ -1,7 +1,4 @@
-package com.example.insightsapp.ui.coupons
-import androidx.annotation.DrawableRes
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
+package com.example.insightsapp.data.database
 
 data class Coupon(
     val id: String,

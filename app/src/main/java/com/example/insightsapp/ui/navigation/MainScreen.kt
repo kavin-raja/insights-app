@@ -19,11 +19,21 @@ import com.example.insightsapp.ui.profile.ProfileScreen
 import com.example.insightsapp.ui.surveys.SurveysScreen
 import com.example.insightsapp.ui.wallet.WalletScreen
 import com.example.insightsapp.ui.coupons.CouponsScreen
+import com.example.insightsapp.data.database.UserCoupon
 
 // NEW imports for writing the debit on claim
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import com.example.insightsapp.data.database.Transaction
+import com.example.insightsapp.data.remote.SupabaseConfig
+import com.example.insightsapp.data.remote.SupabaseHttpClient
+import com.example.insightsapp.data.remote.dto.toSupabaseUserCoupon
+import io.ktor.client.request.header
+import io.ktor.client.request.headers
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 
 @Preview(showBackground = true)
 @Composable
@@ -138,49 +148,85 @@ fun MainScreen(
             } else {
                 when (selectedTab) {
                     0 -> SurveysScreen(
-                        // ✅ Better name extraction logic
                         userName = getFirstName(uiState.user?.fullName),
                         surveys = uiState.surveys,
                         onSurveyClick = { survey ->
                             println("Survey clicked: ${survey.title}")
-                            // TODO: Navigate to survey detail screen
                         }
                     )
-                    1 -> WalletScreen(
-                        phoneNumber = phoneNumber,
-                        onRedeemClick = { showCoupons = true } // open overlay
-                    )
-                    2 -> ProfileScreen(
-                        phoneNumber = phoneNumber
-                    )
+                    1 -> {
+                        // ✅ Add debug logs to verify data
+                        println("📱 MainScreen: Passing to WalletScreen - balance=${uiState.walletBalance}, transactions=${uiState.transactions.size}")
+
+                        WalletScreen(
+                            phoneNumber = phoneNumber,
+                            onRedeemClick = { showCoupons = true },
+                            currentBalance = uiState.walletBalance,
+                            transactions = uiState.transactions,
+                            isLoading = uiState.isLoading
+                        )
+                    }
+                    2 -> ProfileScreen(phoneNumber = phoneNumber)
                 }
             }
 
             // Coupons overlay: now writes a DEBIT on claim, then closes
             if (showCoupons) {
                 CouponsScreen(
+                    phoneNumber,
                     onClose = { showCoupons = false },
                     onClaimed = { coupon ->
                         val userId = uiState.user?.userId
                         if (userId == null) {
-                            // No user yet; just close overlay gracefully
                             showCoupons = false
                             return@CouponsScreen
                         }
-                        val txn = Transaction(
-                            transactionId = "txn_${System.currentTimeMillis()}",
-                            userId = userId,
-                            type = "DEBIT",
-                            amount = coupon.points.toDouble(),     // treat points as wallet unit
-                            description = "Coupon: ${coupon.title}",
-                            timestamp = System.currentTimeMillis(),
-                            status = "SUCCESS"
-                        )
+
                         scope.launch {
-                            // Persist the debit; Wallet observes transactions and will recompute balance
-                            databaseProvider.transactionRepository.insertTransaction(txn)
-                            // Close overlay after saving
-                            showCoupons = false
+                            try {
+                                // ✅ Insert transaction (this works)
+                                val txn = Transaction(
+                                    transactionId = "txn_${System.currentTimeMillis()}",
+                                    userId = userId,
+                                    type = "DEBIT",
+                                    amount = coupon.points.toDouble(),
+                                    description = "Coupon: ${coupon.title}",
+                                    timestamp = System.currentTimeMillis(),
+                                    status = "SUCCESS"
+                                )
+
+                                databaseProvider.transactionRepository.insertTransaction(txn)
+                                println("✅ Transaction created: ${txn.description}")
+
+                                // ✅ Simple user coupon insert with direct JSON
+                                try {
+                                    val httpClient = SupabaseHttpClient.getInstance()
+                                    val result = httpClient.client.post("${SupabaseConfig.SUPABASE_URL}/rest/v1/user_coupons") {
+                                        headers {
+                                            append("apikey", SupabaseConfig.SUPABASE_ANON_KEY)
+                                            append("Authorization", "Bearer ${SupabaseConfig.SUPABASE_ANON_KEY}")
+                                            append("Content-Profile", "public")
+                                        }
+                                        contentType(ContentType.Application.Json)
+                                        // ✅ Direct JSON - let Supabase handle UUID conversion
+                                        setBody("""{"user_id":"$userId","coupon_id":"${coupon.id}"}""")
+                                    }
+
+                                    println("✅ User coupon inserted: ${result.status}")
+                                } catch (e: Exception) {
+                                    println("⚠️ User coupon insert failed (continuing anyway): ${e.message}")
+                                    // Don't fail the whole operation - transaction already succeeded
+                                }
+
+                                // ✅ Refresh MainViewModel data
+                                viewModel.onCouponPurchased(coupon.points.toDouble())
+
+                            } catch (e: Exception) {
+                                println("❌ Coupon purchase error: ${e.message}")
+                                e.printStackTrace()
+                            } finally {
+                                showCoupons = false
+                            }
                         }
                     }
                 )

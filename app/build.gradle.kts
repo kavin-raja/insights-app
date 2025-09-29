@@ -88,6 +88,8 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("io.coil-kt:coil-compose:2.6.0")
 
+    //Loading aysc Image
+    implementation("io.coil-kt:coil-compose:2.4.0")
 
     // Testing
     debugImplementation("androidx.compose.ui:ui-tooling")

@@ -8,6 +8,7 @@ import com.example.insightsapp.data.database.Survey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.InternalSerializationApi
 import kotlinx.serialization.SerialName
+import com.example.insightsapp.data.remote.dto.SupabaseUserCoupon
 
 @Serializable
 data class SupabaseUser(
@@ -53,9 +54,9 @@ data class SupabaseTransaction(
 @Serializable
 data class SupabaseCoupon(
     @SerialName("coupon_id") val couponId: String,
-    val title: String,
-    val brand: String? = null,
-    @SerialName("price_points") val pricePoints: Int,
+    @SerialName("title") val title: String,
+    @SerialName("brand") val brand: String? = null,
+    @SerialName("price_points") val pricePoints: Int,  // ✅ Keep as Int for coupons
     @SerialName("image_url") val imageUrl: String? = null
 )
 
