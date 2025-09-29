@@ -1,6 +1,8 @@
 package com.example.insightsapp.ui.navigation
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -16,6 +18,12 @@ import com.example.insightsapp.ui.main.MainViewModelFactory
 import com.example.insightsapp.ui.profile.ProfileScreen
 import com.example.insightsapp.ui.surveys.SurveysScreen
 import com.example.insightsapp.ui.wallet.WalletScreen
+import com.example.insightsapp.ui.coupons.CouponsScreen
+
+// NEW imports for writing the debit on claim
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import com.example.insightsapp.data.database.Transaction
 
 @Preview(showBackground = true)
 @Composable
@@ -37,6 +45,12 @@ fun MainScreen(
 
     val uiState by viewModel.uiState.collectAsState()
     var selectedTab by remember { mutableStateOf(initialTab) }
+
+    // Overlay flag for the coupons screen (unchanged)
+    var showCoupons by remember { mutableStateOf(false) }
+
+    // NEW: scope to perform suspend repository calls from UI callbacks
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(uiState) {
         println("🐛 MainScreen Debug:")
@@ -79,7 +93,6 @@ fun MainScreen(
                 NavigationBarItem(
                     icon = {
                         Icon(
-                            // ✅ Use XML wallet icon for navigation
                             painterResource(id = com.example.insightsapp.R.drawable.ic_wallet_nav),
                             contentDescription = "Wallet"
                         )
@@ -134,18 +147,49 @@ fun MainScreen(
                         }
                     )
                     1 -> WalletScreen(
-                        phoneNumber = phoneNumber // ✅ Pass phoneNumber, not individual parameters
+                        phoneNumber = phoneNumber,
+                        onRedeemClick = { showCoupons = true } // open overlay
                     )
                     2 -> ProfileScreen(
-                        phoneNumber = phoneNumber // ✅ Pass phoneNumber, not user object
+                        phoneNumber = phoneNumber
                     )
                 }
+            }
+
+            // Coupons overlay: now writes a DEBIT on claim, then closes
+            if (showCoupons) {
+                CouponsScreen(
+                    onClose = { showCoupons = false },
+                    onClaimed = { coupon ->
+                        val userId = uiState.user?.userId
+                        if (userId == null) {
+                            // No user yet; just close overlay gracefully
+                            showCoupons = false
+                            return@CouponsScreen
+                        }
+                        val txn = Transaction(
+                            transactionId = "txn_${System.currentTimeMillis()}",
+                            userId = userId,
+                            type = "DEBIT",
+                            amount = coupon.points.toDouble(),     // treat points as wallet unit
+                            description = "Coupon: ${coupon.title}",
+                            timestamp = System.currentTimeMillis(),
+                            status = "SUCCESS"
+                        )
+                        scope.launch {
+                            // Persist the debit; Wallet observes transactions and will recompute balance
+                            databaseProvider.transactionRepository.insertTransaction(txn)
+                            // Close overlay after saving
+                            showCoupons = false
+                        }
+                    }
+                )
             }
         }
     }
 }
 
-// ✅ Helper function to extract first name properly
+// ✅ Helper function to extract first name properly (unchanged)
 private fun getFirstName(fullName: String?): String {
     return when {
         fullName.isNullOrBlank() -> "User"

@@ -27,11 +27,10 @@ import java.util.*
 @Preview(showBackground = true)
 @Composable
 fun WalletScreenPreview() {
-    // ✅ Mock transactions with new Transaction structure (userId instead of phoneNumber)
     val mockTransactions = listOf(
         Transaction(
             transactionId = "trans_001",
-            userId = "user_123", // ✅ Updated to userId
+            userId = "user_123",
             type = "CREDIT",
             amount = 500.0,
             description = "Signup Reward",
@@ -40,7 +39,7 @@ fun WalletScreenPreview() {
         ),
         Transaction(
             transactionId = "trans_002",
-            userId = "user_123", // ✅ Updated to userId
+            userId = "user_123",
             type = "CREDIT",
             amount = 100.0,
             description = "Brand 2 Survey Reward",
@@ -49,7 +48,7 @@ fun WalletScreenPreview() {
         ),
         Transaction(
             transactionId = "trans_003",
-            userId = "user_123", // ✅ Updated to userId
+            userId = "user_123",
             type = "DEBIT",
             amount = 200.0,
             description = "Gift Card Redemption",
@@ -58,7 +57,7 @@ fun WalletScreenPreview() {
         )
     )
 
-    // ✅ Use the UI-only version for preview
+    // UI-only preview
     WalletScreenContent(
         currentBalance = 500.0,
         transactions = mockTransactions,
@@ -68,13 +67,13 @@ fun WalletScreenPreview() {
     )
 }
 
-// ✅ Main WalletScreen that integrates with ViewModel
+// Main WalletScreen that integrates with ViewModel
 @Composable
 fun WalletScreen(
-    phoneNumber: String
+    phoneNumber: String,
+    onRedeemClick: () -> Unit = {}
 ) {
     val context = LocalContext.current
-    // ✅ Use RemoteDatabaseProvider instead of AppDatabase
     val databaseProvider = RemoteDatabaseProvider.getInstance(context)
 
     val viewModel: WalletViewModel = viewModel(
@@ -91,14 +90,12 @@ fun WalletScreen(
             // TODO: Implement withdraw functionality
             println("Withdraw clicked for $phoneNumber")
         },
-        onRedeemClick = {
-            // TODO: Implement redeem functionality
-            println("Redeem clicked for $phoneNumber")
-        }
+        // CHANGED: thread parent callback through to the UI button
+        onRedeemClick = onRedeemClick
     )
 }
 
-// ✅ Separate UI content component (used by both main screen and preview)
+// Separate UI content component (used by both main screen and preview)
 @Composable
 fun WalletScreenContent(
     currentBalance: Double,
@@ -124,7 +121,6 @@ fun WalletScreenContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                // ✅ Use XML wallet icon for header
                 painter = painterResource(id = com.example.insightsapp.R.drawable.ic_wallet_nav),
                 contentDescription = "Menu",
                 modifier = Modifier.size(24.dp),
@@ -147,14 +143,11 @@ fun WalletScreenContent(
         }
 
         if (isLoading) {
-            // Loading state
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(
-                    color = Color(0xFF57C6A9)
-                )
+                CircularProgressIndicator(color = Color(0xFF57C6A9))
             }
         } else {
             // Balance Card
@@ -242,6 +235,7 @@ fun WalletScreenContent(
                 }
 
                 OutlinedButton(
+                    // The Redeem action is now fully parent-controlled
                     onClick = onRedeemClick,
                     modifier = Modifier
                         .weight(1f)

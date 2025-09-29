@@ -41,34 +41,34 @@ class WalletViewModel(
                 if (user != null) {
                     println("👤 User found: ${user.userId}")
 
-                    // ✅ Collect transactions flow using userId
+                    // Collect transactions flow using userId
                     databaseProvider.transactionRepository.getTransactionsByUserId(user.userId).collect { transactions ->
-                        // ✅ Calculate balance from transactions
-                        val balance = calculateBalance(transactions)
+                        println("💰 Transactions loaded: ${transactions.size}")
 
-                        println("💰 Wallet data loaded:")
-                        println("   - Balance: $balance")
-                        println("   - Transactions: ${transactions.size}")
+                        // Collect points flow for live balance updates
+                        databaseProvider.walletRepository.pointsFlow(user.userId).collect { balance ->
+                            println("💰 Current balance updated: $balance")
 
-                        _state.value = WalletState(
-                            currentBalance = balance,
-                            transactions = transactions,
-                            isLoading = false
-                        )
+                            _state.value = WalletState(
+                                currentBalance = balance.toDouble(),
+                                transactions = transactions,
+                                isLoading = false
+                            )
+                        }
                     }
                 } else {
                     println("❌ User not found for phone number: $phoneNumber")
                     _state.value = _state.value.copy(isLoading = false)
                 }
             } catch (e: Exception) {
-                println("❌ Error loading wallet  ${e.message}")
+                println("❌ Error loading wallet: ${e.message}")
                 e.printStackTrace()
                 _state.value = _state.value.copy(isLoading = false)
             }
         }
     }
 
-    // ✅ Helper function to calculate balance
+    // Helper function to calculate balance - still present if needed elsewhere
     private fun calculateBalance(transactions: List<Transaction>): Double {
         var balance = 0.0
         transactions.forEach { transaction ->
@@ -97,7 +97,7 @@ class WalletViewModel(
                     if (existingRewards.isEmpty()) {
                         // Add signup reward transaction
                         val rewardTransaction = Transaction(
-                            userId = user.userId, // ✅ Use userId instead of phoneNumber
+                            userId = user.userId, // Use userId instead of phoneNumber
                             type = "CREDIT",
                             amount = 500.0,
                             description = "Signup Reward",
@@ -124,7 +124,7 @@ class WalletViewModel(
     }
 }
 
-// ✅ Add ViewModelFactory
+// ViewModelFactory for WalletViewModel
 class WalletViewModelFactory(
     private val databaseProvider: RemoteDatabaseProvider,
     private val phoneNumber: String

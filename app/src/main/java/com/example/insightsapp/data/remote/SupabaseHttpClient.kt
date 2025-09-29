@@ -7,12 +7,13 @@ import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.android.*
 import io.ktor.client.plugins.contentnegotiation.*
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.plugins.logging.LogLevel
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.json.Json
-import java.net.URLEncoder
 
 class SupabaseHttpClient {
 
@@ -21,13 +22,12 @@ class SupabaseHttpClient {
         isLenient = true
     }
 
-    private val client = HttpClient(Android) {
-        install(ContentNegotiation) {
-            json(json)
-        }
+    val client: HttpClient = HttpClient(Android) {
+        install(ContentNegotiation) { json(json) }
+        install(Logging) { level = LogLevel.INFO }
     }
 
-    private val baseUrl = SupabaseConfig.SUPABASE_URL + "/rest/v1"
+    val baseUrl: String = "${SupabaseConfig.SUPABASE_URL}/rest/v1"
     private val apiKey = SupabaseConfig.SUPABASE_ANON_KEY
 
     init {
@@ -45,9 +45,7 @@ class SupabaseHttpClient {
             val url = buildUrl("users", filter, limit, order)
             println("🌐 GET Request: $url")
 
-            val response: HttpResponse = client.get(url) {
-                addHeaders()
-            }
+            val response: HttpResponse = client.get(url) { addHeaders() }
 
             val responseText = response.bodyAsText()
             println("📥 Response: ${response.status}")
@@ -56,9 +54,6 @@ class SupabaseHttpClient {
             if (response.status.isSuccess()) {
                 val users: List<SupabaseUser> = json.decodeFromString(responseText)
                 println("👥 Found ${users.size} users")
-                users.forEach { user ->
-                    println("   - User: ${user.phone_number} (ID: ${user.user_id})")
-                }
                 users
             } else {
                 println("❌ Error response: $responseText")
@@ -75,63 +70,35 @@ class SupabaseHttpClient {
         return try {
             println("🔍 Searching for phone: $phoneNumber")
 
-            // ✅ Method 1: Try with URL encoding
             val encodedPhone = java.net.URLEncoder.encode(phoneNumber, "UTF-8")
             val url1 = "$baseUrl/users?select=*&phone_number=eq.$encodedPhone&limit=1"
-
             println("🌐 Method 1 URL: $url1")
 
-            var response: HttpResponse = client.get(url1) {
-                addHeaders()
-            }
-
+            var response: HttpResponse = client.get(url1) { addHeaders() }
             var responseText = response.bodyAsText()
             println("📥 Method 1 Response: ${response.status}")
             println("📦 Method 1 Body: $responseText")
 
             if (response.status.isSuccess()) {
                 val users: List<SupabaseUser> = json.decodeFromString(responseText)
-                if (users.isNotEmpty()) {
-                    val user = users.first()
-                    println("✅ Found user with Method 1: ${user.phone_number} (ID: ${user.user_id})")
-                    return user
-                }
+                if (users.isNotEmpty()) return users.first()
             }
 
-            // ✅ Method 2: Try without encoding but with quotes
             val url2 = "$baseUrl/users?select=*&phone_number=eq.\"$phoneNumber\"&limit=1"
             println("🌐 Method 2 URL: $url2")
 
-            response = client.get(url2) {
-                addHeaders()
-            }
-
+            response = client.get(url2) { addHeaders() }
             responseText = response.bodyAsText()
             println("📥 Method 2 Response: ${response.status}")
             println("📦 Method 2 Body: $responseText")
 
             if (response.status.isSuccess()) {
                 val users: List<SupabaseUser> = json.decodeFromString(responseText)
-                if (users.isNotEmpty()) {
-                    val user = users.first()
-                    println("✅ Found user with Method 2: ${user.phone_number} (ID: ${user.user_id})")
-                    return user
-                }
+                if (users.isNotEmpty()) return users.first()
             }
 
-            // ✅ Method 3: Get all users and filter manually (fallback)
-            println("🌐 Method 3: Manual filtering")
             val allUsers = selectUsers()
-            val matchedUser = allUsers.find { it.phone_number == phoneNumber }
-
-            if (matchedUser != null) {
-                println("✅ Found user with Method 3: ${matchedUser.phone_number} (ID: ${matchedUser.user_id})")
-                return matchedUser
-            }
-
-            println("❌ No user found with any method for phone: $phoneNumber")
-            return null
-
+            allUsers.find { it.phone_number == phoneNumber }
         } catch (e: Exception) {
             println("❌ Error selecting user by phone: ${e.message}")
             e.printStackTrace()
@@ -139,14 +106,10 @@ class SupabaseHttpClient {
         }
     }
 
-
     suspend fun selectTransactions(filter: String? = null, limit: Int? = null, order: String? = null): List<SupabaseTransaction> {
         return try {
             val url = buildUrl("transactions", filter, limit, order)
-            val response: HttpResponse = client.get(url) {
-                addHeaders()
-            }
-
+            val response: HttpResponse = client.get(url) { addHeaders() }
             if (response.status.isSuccess()) {
                 val responseText = response.bodyAsText()
                 json.decodeFromString(responseText)
@@ -163,10 +126,7 @@ class SupabaseHttpClient {
     suspend fun selectSurveys(filter: String? = null, limit: Int? = null, order: String? = null): List<SupabaseSurvey> {
         return try {
             val url = buildUrl("surveys", filter, limit, order)
-            val response: HttpResponse = client.get(url) {
-                addHeaders()
-            }
-
+            val response: HttpResponse = client.get(url) { addHeaders() }
             if (response.status.isSuccess()) {
                 val responseText = response.bodyAsText()
                 json.decodeFromString(responseText)
@@ -183,25 +143,14 @@ class SupabaseHttpClient {
     suspend fun insertUser(user: SupabaseUser): Boolean {
         return try {
             println("📤 Inserting user: ${user.phone_number}")
-            println("📤 User ID: ${user.user_id}")
-            println("📤 Full Name: ${user.full_name}")
-
             val response: HttpResponse = client.post("$baseUrl/users") {
                 addHeaders()
                 contentType(ContentType.Application.Json)
                 setBody(user)
             }
-
             val responseText = response.bodyAsText()
-            println("📥 Insert Response: ${response.status}")
-            println("📦 Insert Body: $responseText")
-
-            if (response.status.isSuccess()) {
-                println("✅ User inserted successfully")
-                true
-            } else {
-                println("❌ Insert failed: $responseText")
-                false
+            if (response.status.isSuccess()) true else {
+                println("❌ Insert failed: $responseText"); false
             }
         } catch (e: Exception) {
             println("❌ Error inserting user: ${e.message}")
@@ -212,23 +161,13 @@ class SupabaseHttpClient {
 
     suspend fun insertTransaction(transaction: SupabaseTransaction): Boolean {
         return try {
-            println("📤 Inserting transaction: ${transaction.description} for ${transaction.user_id}")
-
             val response: HttpResponse = client.post("$baseUrl/transactions") {
                 addHeaders()
                 contentType(ContentType.Application.Json)
                 setBody(transaction)
             }
-
-            val responseText = response.bodyAsText()
-            println("📥 Transaction Response: ${response.status}")
-
-            if (response.status.isSuccess()) {
-                println("✅ Transaction inserted successfully")
-                true
-            } else {
-                println("❌ Transaction insert failed: $responseText")
-                false
+            if (response.status.isSuccess()) true else {
+                println("❌ Transaction insert failed: ${response.bodyAsText()}"); false
             }
         } catch (e: Exception) {
             println("❌ Error inserting transaction: ${e.message}")
@@ -252,24 +191,12 @@ class SupabaseHttpClient {
 
     suspend fun updateUser(updates: Map<String, Any?>, filter: String): Boolean {
         return try {
-            println("🔄 Updating user with filter: $filter")
-            println("🔄 Updates: $updates")
-
-            // ✅ Extract user_id from filter for primary key updates
             val userId = if (filter.contains("user_id=eq.")) {
                 filter.substringAfter("user_id=eq.").removeSurrounding("\"")
             } else null
 
-            val url = if (userId != null) {
-                // ✅ Use primary key syntax for user_id updates
-                "$baseUrl/users?user_id=eq.$userId"
-            } else {
-                "$baseUrl/users?$filter"
-            }
+            val url = if (userId != null) "$baseUrl/users?user_id=eq.$userId" else "$baseUrl/users?$filter"
 
-            println("🌐 Update URL: $url")
-
-            // ✅ Create JSON manually to avoid LinkedHashMap serialization issues
             val jsonBody = buildString {
                 append("{")
                 updates.entries.forEachIndexed { index, (key, value) ->
@@ -286,8 +213,6 @@ class SupabaseHttpClient {
                 append("}")
             }
 
-            println("🔄 JSON Body: $jsonBody")
-
             val response: HttpResponse = client.patch(url) {
                 addHeaders()
                 contentType(ContentType.Application.Json)
@@ -295,30 +220,13 @@ class SupabaseHttpClient {
             }
 
             val responseText = response.bodyAsText()
-            println("📥 Update Response: ${response.status}")
-            println("📦 Update Body: $responseText")
-
             when (response.status) {
-                HttpStatusCode.OK -> {
-                    println("✅ User updated successfully (200 OK)")
-                    true
-                }
+                HttpStatusCode.OK -> true
                 HttpStatusCode.NoContent -> {
-                    // ✅ Check if it's actually no content or no rows affected
                     if (userId != null) {
-                        // Verify the update by checking if user exists
                         val verification = selectUsers(filter = "user_id=eq.$userId", limit = 1)
-                        if (verification.isNotEmpty()) {
-                            println("✅ User updated successfully (204 with verification)")
-                            true
-                        } else {
-                            println("❌ Update failed: User not found with ID: $userId")
-                            false
-                        }
-                    } else {
-                        println("✅ User updated successfully (204 No Content)")
-                        true
-                    }
+                        verification.isNotEmpty()
+                    } else true
                 }
                 else -> {
                     println("❌ Update failed: $responseText")
@@ -331,9 +239,6 @@ class SupabaseHttpClient {
             false
         }
     }
-
-
-
 
     suspend fun upsertSurvey(survey: SupabaseSurvey): Boolean {
         return try {
@@ -350,6 +255,66 @@ class SupabaseHttpClient {
         }
     }
 
+    /**
+     * Atomically redeems a coupon: 1) check balance, 2) upsert user_coupons,
+     * 3) insert DEBIT transaction, 4) update user points.
+     *
+     * Returns the new points balance or throws if insufficient.
+     */
+    suspend fun redeemCoupon(
+        userId: String,
+        couponId: String,
+        costPts: Int
+    ): Int {
+        // 1️⃣  pull coupon price & user balance in one request batch
+        val user = selectUsers(filter = "user_id=eq.$userId", limit = 1).firstOrNull()
+            ?: throw Exception("User not found")
+
+        val couponResponse: List<Map<String, Int>> = client.get("$baseUrl/coupons") {
+            with(this@SupabaseHttpClient) { supabaseHeaders() }
+            parameter("select", "price_points")
+            parameter("coupon_id", "eq.$couponId")
+        }.body()
+
+        val coupon = couponResponse.firstOrNull() ?: throw Exception("Coupon not found")
+
+        val current = user.points
+        val price = coupon["price_points"] ?: costPts
+
+        if (current < price) throw Exception("INSUFFICIENT_BALANCE")
+
+        // 2️⃣  Insert into user_coupons
+        client.post("$baseUrl/user_coupons") {
+            with(this@SupabaseHttpClient) { supabaseHeaders() }
+            header("Prefer", "resolution=merge-duplicates")
+            contentType(ContentType.Application.Json)
+            setBody(mapOf("user_id" to userId, "coupon_id" to couponId))
+        }
+
+        // 3️⃣  Insert DEBIT transaction
+        client.post("$baseUrl/transactions") {
+            with(this@SupabaseHttpClient) { supabaseHeaders() }
+            contentType(ContentType.Application.Json)
+            setBody(
+                mapOf(
+                    "user_id" to userId,
+                    "type" to "DEBIT",
+                    "amount" to price,
+                    "description" to "Coupon: $couponId"
+                )
+            )
+        }
+
+        // 4️⃣  Decrement points
+        client.patch("$baseUrl/users?user_id=eq.$userId") {
+            with(this@SupabaseHttpClient) { supabaseHeaders() }
+            contentType(ContentType.Application.Json)
+            setBody("""{"points":${current - price}}""")
+        }
+
+        return current - price
+    }
+
     private fun buildUrl(table: String, filter: String?, limit: Int?, order: String?): String {
         return buildString {
             append("$baseUrl/$table")
@@ -360,23 +325,35 @@ class SupabaseHttpClient {
         }
     }
 
+    // Augmented: send apikey, bearer, schema headers for both read and write + Accept JSON
     private fun HttpRequestBuilder.addHeaders() {
         headers {
             append("apikey", apiKey)
             append("Authorization", "Bearer $apiKey")
-            append("Content-Profile", "public")
+            append("Accept-Profile", "public")   // for reads
+            append("Content-Profile", "public")  // for writes
         }
+        accept(ContentType.Application.Json)
+    }
+
+    // Optional: precise method-aware helper (not used by call sites; kept for future)
+    fun HttpRequestBuilder.supabaseHeaders(
+        schema: String = "public",
+        bearer: String = SupabaseConfig.SUPABASE_ANON_KEY
+    ) {
+        header("apikey", SupabaseConfig.SUPABASE_ANON_KEY)
+        header("Authorization", "Bearer $bearer")
+        // PostgREST schema negotiation
+        header("Accept-Profile", schema)
+        header("Content-Profile", schema)
+        accept(ContentType.Application.Json)
     }
 
     companion object {
-        @Volatile
-        private var INSTANCE: SupabaseHttpClient? = null
-
+        @Volatile private var INSTANCE: SupabaseHttpClient? = null
         fun getInstance(): SupabaseHttpClient {
             return INSTANCE ?: synchronized(this) {
-                val instance = SupabaseHttpClient()
-                INSTANCE = instance
-                instance
+                SupabaseHttpClient().also { INSTANCE = it }
             }
         }
     }
