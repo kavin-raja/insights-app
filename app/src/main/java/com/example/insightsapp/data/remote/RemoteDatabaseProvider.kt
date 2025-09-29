@@ -6,6 +6,9 @@ import com.example.insightsapp.data.auth.AuthenticationService
 import com.example.insightsapp.data.repository.TransactionRepository
 import com.example.insightsapp.data.repository.UserRepository
 import com.example.insightsapp.data.session.UserSessionManager
+import com.example.insightsapp.data.remote.CouponRepository
+import com.example.insightsapp.data.remote.WalletRepository
+
 
 class RemoteDatabaseProvider(context: Context) {
 
@@ -18,7 +21,11 @@ class RemoteDatabaseProvider(context: Context) {
     val userRepository = UserRepository(userDataSource)
     val transactionRepository = TransactionRepository(transactionDataSource)
     val surveyRepository = SurveyRepository(surveyDataSource)
+    val couponRepository = CouponRepository.instance()      // NEW
+    val walletRepository = WalletRepository.instance()      // NEW (uses transaction repo internally)
     val userSessionManager = UserSessionManager(context)
+
+
 
     val authenticationService = AuthenticationService(this)
 
