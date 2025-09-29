@@ -1,0 +1,53 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#57C6A9">
+
+    <!-- Top ellipse - Fill -->
+    <path android:fillColor="@android:color/white"
+        android:pathData="M12,3C7.58,3 4,4.79 4,7c0,2.21 3.58,4 8,4s8,-1.79 8,-4C20,4.79 16.42,3 12,3z"/>
+    <!-- Top ellipse - Border -->
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#57C6A9"
+        android:strokeWidth="0.8"
+        android:pathData="M12,3C7.58,3 4,4.79 4,7c0,2.21 3.58,4 8,4s8,-1.79 8,-4C20,4.79 16.42,3 12,3z"/>
+
+    <!-- Middle section - Fill -->
+    <path android:fillColor="@android:color/white"
+        android:pathData="M4,7v4c0,2.21 3.58,4 8,4s8,-1.79 8,-4V7c0,0 0,2 0,2c0,1.1 -2.69,2 -6,2S6,10.1 6,9c0,0 0,-2 0,-2H4z"/>
+    <!-- Middle section - Side borders -->
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#57C6A9"
+        android:strokeWidth="0.8"
+        android:pathData="M4,7v4c0,2.21 3.58,4 8,4M20,7v4c0,2.21 -3.58,4 -8,4"/>
+
+    <!-- Middle ellipse - Fill -->
+    <path android:fillColor="@android:color/white"
+        android:pathData="M12,9C7.58,9 4,10.79 4,13s3.58,4 8,4s8,-1.79 8,-4S16.42,9 12,9z"/>
+    <!-- Middle ellipse - Border -->
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#57C6A9"
+        android:strokeWidth="0.8"
+        android:pathData="M12,9C7.58,9 4,10.79 4,13s3.58,4 8,4s8,-1.79 8,-4S16.42,9 12,9z"/>
+
+    <!-- Bottom section - Fill -->
+    <path android:fillColor="@android:color/white"
+        android:pathData="M4,13v4c0,2.21 3.58,4 8,4s8,-1.79 8,-4v-4c0,0 0,2 0,2c0,1.1 -2.69,2 -6,2S6,16.1 6,15c0,0 0,-2 0,-2H4z"/>
+    <!-- Bottom section - Side borders -->
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#57C6A9"
+        android:strokeWidth="0.8"
+        android:pathData="M4,13v4c0,2.21 3.58,4 8,4M20,13v4c0,2.21 -3.58,4 -8,4"/>
+
+    <!-- Bottom ellipse - Fill -->
+    <path android:fillColor="@android:color/white"
+        android:pathData="M12,15C7.58,15 4,16.79 4,19s3.58,4 8,4s8,-1.79 8,-4S16.42,15 12,15z"/>
+    <!-- Bottom ellipse - Border -->
+    <path android:fillColor="@android:color/transparent"
+        android:strokeColor="#57C6A9"
+        android:strokeWidth="0.8"
+        android:pathData="M12,15C7.58,15 4,16.79 4,19s3.58,4 8,4s8,-1.79 8,-4S16.42,15 12,15z"/>
+
+</vector>
