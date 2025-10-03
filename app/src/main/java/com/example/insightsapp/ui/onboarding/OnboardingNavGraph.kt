@@ -6,13 +6,17 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import com.example.insightsapp.ui.navigation.MainScreen
 import com.example.insightsapp.ui.privacy.PrivacyConsentScreen
 import com.example.insightsapp.ui.profile.BasicDetailsScreen
 import com.example.insightsapp.ui.rewards.CongratulationsScreen
+import com.example.insightsapp.ui.survey.SurveyCompletionScreen
+import com.example.insightsapp.ui.survey.SurveyQuestionScreen
 
 @Composable
-fun OnboardingNavGraph() {
+fun OnboardingNavGraph(
+) {
     val navController = rememberNavController()
 
     NavHost(navController = navController, startDestination = "welcome") {
@@ -41,13 +45,11 @@ fun OnboardingNavGraph() {
                 phoneNumber = phoneNumber,
                 onOtpVerified = { isReturningUser ->
                     if (isReturningUser) {
-                        // ✅ Skip onboarding for returning users
                         println("✅ Returning user - skipping to main app")
                         navController.navigate("main_screen/0/$phoneNumber") {
                             popUpTo("welcome") { inclusive = true }
                         }
                     } else {
-                        // ✅ New user - continue with onboarding
                         println("✅ New user - continuing onboarding")
                         navController.navigate("privacy_consent/$phoneNumber") {
                             popUpTo("phone_input") { inclusive = true }
@@ -92,7 +94,7 @@ fun OnboardingNavGraph() {
         ) { backStackEntry ->
             val phoneNumber = backStackEntry.arguments?.getString("phoneNumber") ?: ""
             CongratulationsScreen(
-                phoneNumber = phoneNumber, // ✅ Pass phone number
+                phoneNumber = phoneNumber,
                 onExploreSurveys = {
                     navController.navigate("main_screen/0/$phoneNumber") {
                         popUpTo("welcome") { inclusive = true }
@@ -117,9 +119,49 @@ fun OnboardingNavGraph() {
             val phoneNumber = backStackEntry.arguments?.getString("phoneNumber") ?: ""
             MainScreen(
                 initialTab = initialTab,
-                phoneNumber = phoneNumber
+                phoneNumber = phoneNumber,
+                navController = navController
+            )
+        }
+
+        // ✅ Fixed survey navigation with proper reward points handling
+        composable(
+            route = "survey/{surveyId}/{userId}",
+            arguments = listOf(
+                navArgument("surveyId") { type = NavType.StringType },
+                navArgument("userId") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val surveyId = backStackEntry.arguments?.getString("surveyId") ?: return@composable
+            val userId = backStackEntry.arguments?.getString("userId") ?: return@composable
+
+            SurveyQuestionScreen(
+                surveyId = surveyId,
+                userId = userId,
+                onBack = { navController.popBackStack() },
+                onClose = { navController.popBackStack() },
+                onComplete = { rewardPoints -> // ✅ Now receives reward points parameter
+                    navController.navigate("surveyComplete/$rewardPoints") {
+                        popUpTo("main_screen/{tab}/{phoneNumber}") // ✅ Go back to main screen
+                    }
+                }
+            )
+        }
+
+        composable(
+            route = "surveyComplete/{rewardPoints}",
+            arguments = listOf(navArgument("rewardPoints") { type = NavType.IntType })
+        ) { backStackEntry ->
+            val rewardPoints = backStackEntry.arguments?.getInt("rewardPoints") ?: 0
+
+            SurveyCompletionScreen(
+                rewardPoints = rewardPoints,
+                onBackToHome = {
+                    navController.navigate("main_screen/0/+919150423766") { // ✅ Use actual phone number or pass it through navigation
+                        popUpTo("main_screen/0/+919150423766") { inclusive = true }
+                    }
+                }
             )
         }
     }
 }
-

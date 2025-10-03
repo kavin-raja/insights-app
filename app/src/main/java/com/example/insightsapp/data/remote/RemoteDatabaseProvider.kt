@@ -15,12 +15,11 @@ class RemoteDatabaseProvider(context: Context) {
     // Data Sources
     private val userDataSource = RemoteUserDataSource()
     private val transactionDataSource = RemoteTransactionDataSource()
-    private val surveyDataSource = RemoteSurveyDataSource()
 
     // Repositories (public interface)
     val userRepository = UserRepository(userDataSource)
     val transactionRepository = TransactionRepository(transactionDataSource)
-    val surveyRepository = SurveyRepository(surveyDataSource)
+
     val couponRepository = CouponRepository.instance()      // NEW
     val walletRepository = WalletRepository.instance()      // NEW (uses transaction repo internally)
     val userSessionManager = UserSessionManager(context)
