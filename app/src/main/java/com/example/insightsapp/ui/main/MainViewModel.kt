@@ -142,64 +142,6 @@ class MainViewModel(
         }
     }
 
-//    fun initializeSampleSurveys() {
-//        viewModelScope.launch {
-//            try {
-//                // ✅ Use repository instead of direct data source
-//                val existingSurveysCount = 1
-//                println("🔍 Existing surveys count: $existingSurveysCount")
-//
-//                if (existingSurveysCount == 0) {
-//                    val sampleSurveys = listOf(
-//                        Survey(
-//                            surveyId = "survey_001",
-//                            title = "Brand 1 Survey",
-//                            description = "Help us improve our product by sharing your thoughts.",
-//                            brandName = "Brand 1",
-//                            reward = 250.0,
-//                            durationMinutes = 3,
-//                            isActive = true
-//                        ),
-//                        Survey(
-//                            surveyId = "survey_002",
-//                            title = "Brand 2 Survey",
-//                            description = "Discuss your preferences and help us improve our products.",
-//                            brandName = "Brand 2",
-//                            reward = 250.0,
-//                            durationMinutes = 5,
-//                            isActive = true
-//                        ),
-//                        Survey(
-//                            surveyId = "survey_003",
-//                            title = "Brand 3 Survey",
-//                            description = "Share your thoughts on our latest products and services.",
-//                            brandName = "Brand 3",
-//                            reward = 500.0,
-//                            durationMinutes = 10,
-//                            isActive = true
-//                        ),
-//                        Survey(
-//                            surveyId = "survey_004",
-//                            title = "Brand 4 Survey",
-//                            description = "Provide feedback on our latest features.",
-//                            brandName = "Brand 4",
-//                            reward = 100.0,
-//                            durationMinutes = 4,
-//                            isActive = true
-//                        )
-//                    )
-//
-//                    println("✅ Sample surveys initialized: ${sampleSurveys.size} surveys")
-//                } else {
-//                    println("✅ Surveys already exist: $existingSurveysCount surveys")
-//                }
-//            } catch (e: Exception) {
-//                println("❌ Error initializing surveys: ${e.message}")
-//                e.printStackTrace()
-//            }
-//        }
-//    }
-
     fun onCouponPurchased(couponCost: Double) {
         // Refresh user data to get updated transactions
         loadUserData()

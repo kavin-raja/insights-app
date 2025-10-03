@@ -30,7 +30,6 @@ import kotlinx.coroutines.launch
 import com.example.insightsapp.data.database.Transaction
 import com.example.insightsapp.data.remote.SupabaseConfig
 import com.example.insightsapp.data.remote.SupabaseHttpClient
-import com.example.insightsapp.data.remote.dto.toSupabaseUserCoupon
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
 import io.ktor.client.request.post
@@ -44,7 +43,8 @@ fun MainScreenPreview() {
     MainScreen(
         phoneNumber = "+919876543210",
         initialTab = TODO(),
-        navController = TODO()
+        navController = TODO(),
+        userId = TODO()
     )
 }
 
@@ -52,7 +52,8 @@ fun MainScreenPreview() {
 fun MainScreen(
     initialTab: Int = 0,
     phoneNumber: String = "+919876543210",
-    navController: NavController
+    navController: NavController,
+    userId: String
 ) {
     val context = LocalContext.current
     val databaseProvider = RemoteDatabaseProvider.getInstance(context)
@@ -154,7 +155,8 @@ fun MainScreen(
                         phoneNumber = phoneNumber, // ✅ Pass phone number
                         onSurveyClick = { survey, phoneNumber ->
                             // ✅ Navigate to survey with both survey ID and user ID
-                            navController.navigate("survey/${survey.surveyId}/${phoneNumber}")
+                            println("🚀 MainScreen: Navigating to survey with userId: $userId")
+                            navController.navigate("survey/${survey.surveyId}/$userId")
                         }
                     )
                     1 -> {
