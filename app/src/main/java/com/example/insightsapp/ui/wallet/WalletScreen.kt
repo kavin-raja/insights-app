@@ -27,11 +27,10 @@ import java.util.*
 @Preview(showBackground = true)
 @Composable
 fun WalletScreenPreview() {
-    // ✅ Mock transactions with new Transaction structure (userId instead of phoneNumber)
     val mockTransactions = listOf(
         Transaction(
             transactionId = "trans_001",
-            userId = "user_123", // ✅ Updated to userId
+            userId = "user_123",
             type = "CREDIT",
             amount = 500.0,
             description = "Signup Reward",
@@ -40,7 +39,7 @@ fun WalletScreenPreview() {
         ),
         Transaction(
             transactionId = "trans_002",
-            userId = "user_123", // ✅ Updated to userId
+            userId = "user_123",
             type = "CREDIT",
             amount = 100.0,
             description = "Brand 2 Survey Reward",
@@ -49,7 +48,7 @@ fun WalletScreenPreview() {
         ),
         Transaction(
             transactionId = "trans_003",
-            userId = "user_123", // ✅ Updated to userId
+            userId = "user_123",
             type = "DEBIT",
             amount = 200.0,
             description = "Gift Card Redemption",
@@ -58,7 +57,7 @@ fun WalletScreenPreview() {
         )
     )
 
-    // ✅ Use the UI-only version for preview
+    // UI-only preview
     WalletScreenContent(
         currentBalance = 500.0,
         transactions = mockTransactions,
@@ -68,37 +67,32 @@ fun WalletScreenPreview() {
     )
 }
 
-// ✅ Main WalletScreen that integrates with ViewModel
+// Main WalletScreen that integrates with ViewModel
 @Composable
 fun WalletScreen(
-    phoneNumber: String
+    phoneNumber: String,
+    onRedeemClick: () -> Unit,
+    currentBalance: Double = 0.0,
+    transactions: List<Transaction> = emptyList(),
+    isLoading: Boolean = false
 ) {
-    val context = LocalContext.current
-    // ✅ Use RemoteDatabaseProvider instead of AppDatabase
-    val databaseProvider = RemoteDatabaseProvider.getInstance(context)
+    // ✅ Add debug logs to see if data is received
+    println("📱 WalletScreen: Received balance=$currentBalance, transactions=${transactions.size}")
 
-    val viewModel: WalletViewModel = viewModel(
-        factory = WalletViewModelFactory(databaseProvider, phoneNumber)
-    )
-
-    val state by viewModel.state.collectAsState()
-
+    // ✅ Actually call the content component!
     WalletScreenContent(
-        currentBalance = state.currentBalance,
-        transactions = state.transactions,
-        isLoading = state.isLoading,
+        currentBalance = currentBalance,
+        transactions = transactions,
+        isLoading = isLoading,
         onWithdrawClick = {
+            println("💸 Withdraw clicked")
             // TODO: Implement withdraw functionality
-            println("Withdraw clicked for $phoneNumber")
         },
-        onRedeemClick = {
-            // TODO: Implement redeem functionality
-            println("Redeem clicked for $phoneNumber")
-        }
+        onRedeemClick = onRedeemClick
     )
 }
 
-// ✅ Separate UI content component (used by both main screen and preview)
+// Separate UI content component (used by both main screen and preview)
 @Composable
 fun WalletScreenContent(
     currentBalance: Double,
@@ -124,7 +118,6 @@ fun WalletScreenContent(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                // ✅ Use XML wallet icon for header
                 painter = painterResource(id = com.example.insightsapp.R.drawable.ic_wallet_nav),
                 contentDescription = "Menu",
                 modifier = Modifier.size(24.dp),
@@ -147,14 +140,11 @@ fun WalletScreenContent(
         }
 
         if (isLoading) {
-            // Loading state
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator(
-                    color = Color(0xFF57C6A9)
-                )
+                CircularProgressIndicator(color = Color(0xFF57C6A9))
             }
         } else {
             // Balance Card
@@ -242,6 +232,7 @@ fun WalletScreenContent(
                 }
 
                 OutlinedButton(
+                    // The Redeem action is now fully parent-controlled
                     onClick = onRedeemClick,
                     modifier = Modifier
                         .weight(1f)

@@ -36,7 +36,7 @@ import kotlinx.coroutines.launch
 fun OtpVerificationScreenPreview() {
     OtpVerificationScreen(
         phoneNumber = "+919876543210",
-        onOtpVerified = { },
+        onOtpVerified = { } as (Boolean, String) -> Unit,
         onNavigateBack = {}
     )
 }
@@ -44,7 +44,7 @@ fun OtpVerificationScreenPreview() {
 @Composable
 fun OtpVerificationScreen(
     phoneNumber: String,
-    onOtpVerified: (Boolean) -> Unit,
+    onOtpVerified: (isReturningUser: Boolean, userId: String) -> Unit,
     onNavigateBack: () -> Unit,
     viewModel: OtpVerificationViewModel = viewModel() // ✅ No factory needed
 ) {
@@ -161,23 +161,23 @@ fun OtpVerificationScreen(
 
                                     if (authResult.shouldSkipOnboarding) {
                                         println("✅ Returning user - going to main screen")
-                                        onOtpVerified(true) // Navigate to main screen
+                                        onOtpVerified(true,authResult.user.userId) // Navigate to main screen
                                     } else {
                                         println("✅ User exists but incomplete - continuing onboarding")
-                                        onOtpVerified(false) // Continue onboarding
+                                        onOtpVerified(false,authResult.user.userId) // Continue onboarding
                                     }
                                 } else {
                                     // ✅ No user exists - create new user
                                     val newUser = authService.createUser(phoneNumber)
                                     println("✅ New user created: ${newUser.phoneNumber}")
-                                    onOtpVerified(false) // New user = go to onboarding
+                                    onOtpVerified(false, authResult.user?.userId ?:"" ) // New user = go to onboarding
                                 }
 
                             } catch (e: Exception) {
                                 println("❌ Error handling user: ${e.message}")
                                 e.printStackTrace()
                                 // Default to new user flow if error
-                                onOtpVerified(false)
+                                onOtpVerified(false,"")
                             }
                         }
                     }

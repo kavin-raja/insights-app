@@ -7,6 +7,8 @@ import com.example.insightsapp.data.database.Transaction
 import com.example.insightsapp.data.database.Survey
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.InternalSerializationApi
+import kotlinx.serialization.SerialName
+import com.example.insightsapp.data.remote.dto.SupabaseUserCoupon
 
 @Serializable
 data class SupabaseUser(
@@ -34,7 +36,8 @@ data class SupabaseUser(
     val credit_score_status: String? = null,
     val is_account_complete: Boolean = false,
     val has_received_signup_reward: Boolean = false,
-    val signup_reward_timestamp: Long? = null
+    val signup_reward_timestamp: Long? = null,
+    val points: Int = 0,
 )
 
 @Serializable
@@ -46,6 +49,26 @@ data class SupabaseTransaction(
     val description: String,
     val timestamp: Long,
     val status: String = "SUCCESS"
+)
+
+@Serializable
+data class SupabaseCoupon(
+    @SerialName("coupon_id") val couponId: String,
+    @SerialName("title") val title: String,
+    @SerialName("brand") val brand: String? = null,
+    @SerialName("price_points") val pricePoints: Int,  // ✅ Keep as Int for coupons
+    @SerialName("image_url") val imageUrl: String? = null
+)
+
+@Serializable
+data class UserCouponRow(
+    @SerialName("coupon_id") val couponId: String
+)
+
+@Serializable
+private data class TxRow(
+    @SerialName("type") val type: String,
+    @SerialName("amount") val amount: Int
 )
 
 @Serializable

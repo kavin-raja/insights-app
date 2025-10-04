@@ -62,7 +62,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.7.6")
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-
+    implementation("androidx.compose.material:material-icons-extended:1.6.8")
     // Compose (keep existing)
     implementation(platform("androidx.compose:compose-bom:2024.02.00"))
     implementation("androidx.compose.ui:ui")
@@ -82,10 +82,13 @@ dependencies {
     implementation("io.ktor:ktor-client-content-negotiation:2.3.4")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.4")
     implementation("io.ktor:ktor-client-logging:2.3.4")
-    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1")
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
 
     // For secure storage
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("io.coil-kt:coil-compose:2.6.0")
+
+    //Loading aysc Image
     implementation("io.coil-kt:coil-compose:2.4.0")
 
     // Testing

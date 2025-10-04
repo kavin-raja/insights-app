@@ -4,6 +4,7 @@ import com.example.insightsapp.data.database.Transaction
 import com.example.insightsapp.data.remote.dto.toSupabaseTransaction
 import com.example.insightsapp.data.remote.dto.toTransaction
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import java.util.*
 
@@ -26,9 +27,15 @@ class RemoteTransactionDataSource(
         } catch (e: Exception) {
             println("❌ Error fetching transactions: ${e.message}")
             e.printStackTrace()
-            emit(emptyList())
+            // Don't emit here - let catch handle it
+            throw e
         }
+    }.catch { exception ->
+        // ✅ Use Flow.catch to handle exceptions properly
+        println("❌ Flow catch: ${exception.message}")
+        emit(emptyList<Transaction>())
     }
+
 
     suspend fun insertTransaction(transaction: Transaction) {
         try {
