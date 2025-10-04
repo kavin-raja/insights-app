@@ -255,12 +255,6 @@ class SupabaseHttpClient {
         }
     }
 
-    /**
-     * Atomically redeems a coupon: 1) check balance, 2) upsert user_coupons,
-     * 3) insert DEBIT transaction, 4) update user points.
-     *
-     * Returns the new points balance or throws if insufficient.
-     */
     suspend fun redeemCoupon(
         userId: String,
         couponId: String,
@@ -280,7 +274,6 @@ class SupabaseHttpClient {
                 parameter("user_id", "eq.$userId")
             }.bodyAsText()  // ✅ Get as text first
 
-            // ✅ Parse manually to avoid LinkedHashMap issues
             val transactions: List<TxRow> = json.decodeFromString(transactionResponse)
 
             val currentBalance = transactions.sumOf { transaction ->

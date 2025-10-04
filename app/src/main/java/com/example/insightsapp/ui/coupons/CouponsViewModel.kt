@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.insightsapp.data.database.Coupon
 import com.example.insightsapp.data.remote.CouponRepository
+import com.example.insightsapp.data.remote.UserCouponRow
 import com.example.insightsapp.data.remote.WalletRepository
 import com.example.insightsapp.data.remote.RemoteDatabaseProvider
 import com.example.insightsapp.data.remote.dto.SupabaseCoupon
@@ -38,57 +39,61 @@ class CouponsViewModel(
             _isLoading.value = true
 
             try {
-                println("🎫 CouponsViewModel: Loading coupons for $phoneNumber")
-
-                // ✅ Get user the same way as WalletViewModel
+                println("🔍 CouponsViewModel: Starting load for phone: $phoneNumber")
                 val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
+                println("🔍 CouponsViewModel: User lookup result = ${user?.userId}")
 
                 if (user != null) {
                     currentUserId = user.userId
-                    println("👤 CouponsViewModel: Found user ${user.userId} (same as WalletViewModel)")
 
-                    // ✅ Fetch coupons and user's claimed coupons
-                    val dtos: List<SupabaseCoupon> = couponRepo.getCoupons()
-                    val claimedIds: Set<String> = couponRepo.getUserCoupons(user.userId)
-                        .map { it.couponId }.toSet()
+                    // Load coupons with individual error handling
+                    val dtos: List<SupabaseCoupon> = try {
+                        println("🔍 Loading coupons from repository...")
+                        couponRepo.getCoupons()
+                    } catch (e: Exception) {
+                        println("❌ Failed to load coupons: ${e.message}")
+                        e.printStackTrace()
+                        emptyList()
+                    }
 
-                    // ✅ Get current balance using the CORRECT user ID
-                    val balancePoints: Double = walletRepo.currentPoints(user.userId)
-                    println("💰 CouponsViewModel: Balance = $balancePoints for user ${user.userId}")
+                    // Load user's claimed coupons with error handling
+                    val claimedRows: List<UserCouponRow> = try {
+                        println("🔍 Loading claimed coupons for user: ${user.userId}")
+                        couponRepo.getUserCoupons(user.userId)
+                    } catch (e: Exception) {
+                        println("❌ Failed to load user coupons: ${e.message}")
+                        e.printStackTrace()
+                        emptyList()
+                    }
 
-                    // ✅ Set initial data
+                    val claimedIds: Set<String> = claimedRows.map { it.couponId }.toSet()
+
+                    // Load wallet balance with error handling
+                    val balancePoints: Double = try {
+                        println("🔍 Loading wallet balance for user: ${user.userId}")
+                        walletRepo.currentPoints(user.userId)
+                    } catch (e: Exception) {
+                        println("❌ Failed to load wallet balance: ${e.message}")
+                        e.printStackTrace()
+                        0.0
+                    }
+
+                    println("✅ CouponsViewModel: Loaded ${dtos.size} coupons, ${claimedIds.size} claimed, balance: $balancePoints")
                     setFromDto(dtos, claimedIds, balancePoints)
 
-                    // ✅ IMPORTANT: Set loading to false BEFORE starting infinite flow
-                    _isLoading.value = false
-
-                    // ✅ Start real-time balance monitoring in a separate launch
-                    //startBalanceMonitoring(user.userId)
-
                 } else {
-                    println("❌ CouponsViewModel: User not found for $phoneNumber")
-                    _isLoading.value = false
+                    println("❌ CouponsViewModel: User not found for phone: $phoneNumber")
+                    _coupons.value = emptyList()
                 }
 
             } catch (e: Exception) {
-                println("❌ CouponsViewModel: Error: ${e.message}")
+                println("❌ CouponsViewModel: Critical error in loadCoupons()")
+                println("❌ Error: ${e.message}")
                 e.printStackTrace()
+                _coupons.value = emptyList()
+            } finally {
                 _isLoading.value = false
-            }
-            // ✅ Remove finally block since we handle _isLoading in each branch
-        }
-    }
-
-    private fun startBalanceMonitoring(userId: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // ✅ This runs in a separate coroutine, won't block loading
-                walletRepo.pointsFlow(userId).collect { pts ->
-                    println("💰 CouponsViewModel: Balance updated to $pts")
-                    applyBalance(pts)
-                }
-            } catch (e: Exception) {
-                println("❌ Balance monitoring error: ${e.message}")
+                println("✅ CouponsViewModel: Loading completed, isLoading = false")
             }
         }
     }
@@ -100,12 +105,9 @@ class CouponsViewModel(
     ) {
         _coupons.value = dtos.mapNotNull { dto ->
             val url = dto.imageUrl?.trim()
-            if (url.isNullOrEmpty()) {
-                println("⚠️ Skipping coupon ${dto.title} - no image URL")
-                return@mapNotNull null
-            }
+            if (url.isNullOrEmpty()) return@mapNotNull null
 
-            val coupon = Coupon(
+            Coupon(
                 id = dto.couponId,
                 title = dto.title,
                 points = dto.pricePoints,
@@ -113,44 +115,27 @@ class CouponsViewModel(
                 claimed = dto.couponId in claimedIds,
                 canBuy = !claimedIds.contains(dto.couponId) && dto.pricePoints <= balancePoints.toInt()
             )
-
-            println("✅ Coupon: ${coupon.title} - ${coupon.points} pts - Can buy: ${coupon.canBuy}")
-            coupon
         }
-
-        println("🎫 Total coupons: ${_coupons.value.size}")
     }
 
     fun applyBalance(balancePoints: Double) {
         _coupons.update { list ->
             list.map { coupon ->
-                val canBuy = !coupon.claimed && coupon.points <= balancePoints.toInt()
-                coupon.copy(canBuy = canBuy)
+                coupon.copy(canBuy = !coupon.claimed && coupon.points <= balancePoints.toInt())
             }
         }
     }
 
     fun claim(id: String) {
-        val currentList = _coupons.value
-        val selected = currentList.firstOrNull { it.id == id } ?: return
+        val selected = _coupons.value.firstOrNull { it.id == id } ?: return
+        if (selected.claimed || !selected.canBuy) return
 
-        if (selected.claimed || !selected.canBuy) {
-            println("⚠️ Cannot claim coupon: claimed=${selected.claimed}, canBuy=${selected.canBuy}")
-            return
-        }
-
-        println("💳 Claiming coupon: ${selected.title} for ${selected.points} points")
-
-        // ✅ Optimistically update UI
         _coupons.update { list ->
             list.map { if (it.id == id) it.copy(claimed = true, canBuy = false) else it }
         }
-
-        // ✅ Don't call the broken redeemCoupon - let MainScreen handle it
     }
 }
 
-// ✅ ViewModelFactory
 class CouponsViewModelFactory(
     private val databaseProvider: RemoteDatabaseProvider,
     private val phoneNumber: String
