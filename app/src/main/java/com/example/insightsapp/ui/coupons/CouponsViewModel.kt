@@ -63,7 +63,7 @@ class CouponsViewModel(
                     _isLoading.value = false
 
                     // ✅ Start real-time balance monitoring in a separate launch
-                    startBalanceMonitoring(user.userId)
+                    //startBalanceMonitoring(user.userId)
 
                 } else {
                     println("❌ CouponsViewModel: User not found for $phoneNumber")

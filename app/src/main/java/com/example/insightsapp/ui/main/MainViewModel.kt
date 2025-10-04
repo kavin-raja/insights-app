@@ -7,9 +7,11 @@ import com.example.insightsapp.data.database.Survey
 import com.example.insightsapp.data.database.Transaction
 import com.example.insightsapp.data.database.User
 import com.example.insightsapp.data.remote.RemoteDatabaseProvider
+import com.example.insightsapp.data.repository.SurveyRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 data class MainUIState(
@@ -22,7 +24,8 @@ data class MainUIState(
 
 class MainViewModel(
     private val databaseProvider: RemoteDatabaseProvider,
-    private val phoneNumber: String
+    private val phoneNumber: String,
+    private val surveyRepository: SurveyRepository = SurveyRepository.getInstance()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(MainUIState())
@@ -39,37 +42,50 @@ class MainViewModel(
             try {
                 println("🔄 MainViewModel: Loading data for $phoneNumber")
 
-                // ✅ Use repository instead of direct data source
+                // 1. Load user
                 val user = databaseProvider.userRepository.getUserByPhoneNumber(phoneNumber)
                 println("👤 User loaded: ${user?.fullName} (${user?.phoneNumber})")
 
-                if (user != null) {
-                    // Load transactions
-                    databaseProvider.transactionRepository.getTransactionsByUserId(user.userId)
-                        .collect { transactions ->
-                            val balance = calculateBalance(transactions)
-                            println("💰 Balance calculated: $balance from ${transactions.size} transactions")
-
-                            // Load surveys
-                            databaseProvider.surveyRepository.getActiveSurveys().collect { surveys ->
-                                println("📋 Surveys loaded: ${surveys.size} items")
-
-                                _uiState.value = MainUIState(
-                                    user = user,
-                                    walletBalance = balance,
-                                    transactions = transactions,
-                                    surveys = surveys,
-                                    isLoading = false
-                                )
-
-                                println("✅ MainViewModel: State updated successfully")
-                                return@collect
-                            }
-                            return@collect
-                        }
-                } else {
+                if (user == null) {
                     _uiState.value = _uiState.value.copy(isLoading = false)
+                    return@launch
                 }
+
+                // 2. Load transactions - DIRECT CALL, NO FLOWS
+                val transactions = try {
+                    val transactionRepo = databaseProvider.transactionRepository
+                    // Call a method that returns List<Transaction> directly
+                    getTransactionsDirectly(transactionRepo, user.userId)
+                } catch (e: Exception) {
+                    println("⚠️ Error loading transactions: ${e.message}")
+                    emptyList()
+                }
+
+                val balance = calculateBalance(transactions)
+                println("💰 Balance calculated: $balance from ${transactions.size} transactions")
+
+                // 3. Load surveys from API - DIRECT CALL
+                val surveyList = try {
+                    val apiSurveys = surveyRepository.apiService.getSurveys()
+                    apiSurveys.map { it.toSurvey() }
+                } catch (e: Exception) {
+                    println("⚠️ Error loading surveys: ${e.message}")
+                    emptyList()
+                }
+
+                println("📋 Surveys loaded: ${surveyList.size} items")
+
+                // 4. Update state
+                _uiState.value = MainUIState(
+                    user = user,
+                    walletBalance = balance,
+                    transactions = transactions,
+                    surveys = surveyList,
+                    isLoading = false
+                )
+
+                println("✅ MainViewModel: State updated successfully")
+
             } catch (e: Exception) {
                 println("❌ Error loading user  ${e.message}")
                 e.printStackTrace()
@@ -77,6 +93,29 @@ class MainViewModel(
             }
         }
     }
+
+    // Helper method to get transactions without flows
+    private suspend fun getTransactionsDirectly(
+        transactionRepo: Any, // Replace with your actual transaction repository type
+        userId: String
+    ): List<com.example.insightsapp.data.database.Transaction> {
+        return try {
+            // You'll need to add a method to your transaction repository that returns List directly
+            // For now, collect the flow once and return the list
+            transactionRepo::class.java.getMethod("getTransactionsByUserIdDirect", String::class.java)
+                .invoke(transactionRepo, userId) as List<com.example.insightsapp.data.database.Transaction>
+        } catch (e: Exception) {
+            println("⚠️ Direct transaction fetch failed, trying flow once: ${e.message}")
+            // Fallback: collect flow once
+            val method = transactionRepo::class.java.getMethod("getTransactionsByUserId", String::class.java)
+            val flow = method.invoke(transactionRepo, userId) as kotlinx.coroutines.flow.Flow<List<com.example.insightsapp.data.database.Transaction>>
+            flow.first()
+        }
+    }
+
+
+
+
 
     private fun calculateBalance(transactions: List<Transaction>): Double {
         return transactions.sumOf { transaction ->
@@ -98,65 +137,6 @@ class MainViewModel(
 
             } catch (e: Exception) {
                 println("❌ Error in addSignupReward: ${e.message}")
-                e.printStackTrace()
-            }
-        }
-    }
-
-    fun initializeSampleSurveys() {
-        viewModelScope.launch {
-            try {
-                // ✅ Use repository instead of direct data source
-                val existingSurveysCount = databaseProvider.surveyRepository.getAllSurveysCount()
-                println("🔍 Existing surveys count: $existingSurveysCount")
-
-                if (existingSurveysCount == 0) {
-                    val sampleSurveys = listOf(
-                        Survey(
-                            surveyId = "survey_001",
-                            title = "Brand 1 Survey",
-                            description = "Help us improve our product by sharing your thoughts.",
-                            brandName = "Brand 1",
-                            reward = 250.0,
-                            durationMinutes = 3,
-                            isActive = true
-                        ),
-                        Survey(
-                            surveyId = "survey_002",
-                            title = "Brand 2 Survey",
-                            description = "Discuss your preferences and help us improve our products.",
-                            brandName = "Brand 2",
-                            reward = 250.0,
-                            durationMinutes = 5,
-                            isActive = true
-                        ),
-                        Survey(
-                            surveyId = "survey_003",
-                            title = "Brand 3 Survey",
-                            description = "Share your thoughts on our latest products and services.",
-                            brandName = "Brand 3",
-                            reward = 500.0,
-                            durationMinutes = 10,
-                            isActive = true
-                        ),
-                        Survey(
-                            surveyId = "survey_004",
-                            title = "Brand 4 Survey",
-                            description = "Provide feedback on our latest features.",
-                            brandName = "Brand 4",
-                            reward = 100.0,
-                            durationMinutes = 4,
-                            isActive = true
-                        )
-                    )
-
-                    databaseProvider.surveyRepository.insertAllSurveys(sampleSurveys)
-                    println("✅ Sample surveys initialized: ${sampleSurveys.size} surveys")
-                } else {
-                    println("✅ Surveys already exist: $existingSurveysCount surveys")
-                }
-            } catch (e: Exception) {
-                println("❌ Error initializing surveys: ${e.message}")
                 e.printStackTrace()
             }
         }

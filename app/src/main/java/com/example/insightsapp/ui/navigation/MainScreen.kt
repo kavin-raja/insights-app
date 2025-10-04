@@ -23,11 +23,13 @@ import com.example.insightsapp.data.database.UserCoupon
 
 // NEW imports for writing the debit on claim
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.Alignment
+import androidx.navigation.NavController
+import com.example.insightsapp.R
 import kotlinx.coroutines.launch
 import com.example.insightsapp.data.database.Transaction
 import com.example.insightsapp.data.remote.SupabaseConfig
 import com.example.insightsapp.data.remote.SupabaseHttpClient
-import com.example.insightsapp.data.remote.dto.toSupabaseUserCoupon
 import io.ktor.client.request.header
 import io.ktor.client.request.headers
 import io.ktor.client.request.post
@@ -38,13 +40,20 @@ import io.ktor.http.contentType
 @Preview(showBackground = true)
 @Composable
 fun MainScreenPreview() {
-    MainScreen(phoneNumber = "+919876543210")
+    MainScreen(
+        phoneNumber = "+919876543210",
+        initialTab = TODO(),
+        navController = TODO(),
+        userId = TODO()
+    )
 }
 
 @Composable
 fun MainScreen(
     initialTab: Int = 0,
-    phoneNumber: String = "+919876543210"
+    phoneNumber: String = "+919876543210",
+    navController: NavController,
+    userId: String
 ) {
     val context = LocalContext.current
     val databaseProvider = RemoteDatabaseProvider.getInstance(context)
@@ -70,13 +79,6 @@ fun MainScreen(
         println("   - Surveys: ${uiState.surveys.size}")
     }
 
-    LaunchedEffect(Unit) {
-        // ✅ ALWAYS initialize surveys first
-        viewModel.initializeSampleSurveys()
-        // ✅ Only add signup reward if not already received
-        // This will be handled by completeUserOnboarding in CongratulationsScreen
-    }
-
     Scaffold(
         bottomBar = {
             NavigationBar(
@@ -86,7 +88,7 @@ fun MainScreen(
                 NavigationBarItem(
                     icon = {
                         Icon(
-                            painterResource(id = com.example.insightsapp.R.drawable.ic_survey),
+                            painterResource(id = R.drawable.ic_survey),
                             contentDescription = "Surveys"
                         )
                     },
@@ -103,7 +105,7 @@ fun MainScreen(
                 NavigationBarItem(
                     icon = {
                         Icon(
-                            painterResource(id = com.example.insightsapp.R.drawable.ic_wallet_nav),
+                            painterResource(id = R.drawable.ic_wallet_nav),
                             contentDescription = "Wallet"
                         )
                     },
@@ -120,7 +122,7 @@ fun MainScreen(
                 NavigationBarItem(
                     icon = {
                         Icon(
-                            painterResource(id = com.example.insightsapp.R.drawable.ic_profile),
+                            painterResource(id = R.drawable.ic_profile),
                             contentDescription = "Profile"
                         )
                     },
@@ -141,7 +143,7 @@ fun MainScreen(
             if (uiState.isLoading) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
-                    contentAlignment = androidx.compose.ui.Alignment.Center
+                    contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(color = Color(0xFF57C6A9))
                 }
@@ -150,8 +152,11 @@ fun MainScreen(
                     0 -> SurveysScreen(
                         userName = getFirstName(uiState.user?.fullName),
                         surveys = uiState.surveys,
-                        onSurveyClick = { survey ->
-                            println("Survey clicked: ${survey.title}")
+                        phoneNumber = phoneNumber, // ✅ Pass phone number
+                        onSurveyClick = { survey, phoneNumber ->
+                            // ✅ Navigate to survey with both survey ID and user ID
+                            println("🚀 MainScreen: Navigating to survey with userId: $userId")
+                            navController.navigate("survey/${survey.surveyId}/$userId")
                         }
                     )
                     1 -> {
