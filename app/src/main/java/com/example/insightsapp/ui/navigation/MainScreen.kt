@@ -19,9 +19,7 @@ import com.example.insightsapp.ui.profile.ProfileScreen
 import com.example.insightsapp.ui.surveys.SurveysScreen
 import com.example.insightsapp.ui.wallet.WalletScreen
 import com.example.insightsapp.ui.coupons.CouponsScreen
-import com.example.insightsapp.data.database.UserCoupon
 
-// NEW imports for writing the debit on claim
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.navigation.NavController
@@ -36,6 +34,12 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
+
+import com.example.insightsapp.ui.coupons.MyCouponsScreen
+import com.example.insightsapp.ui.coupons.MyCouponsViewModel
+import com.example.insightsapp.data.remote.GetUserCouponsUseCase
+import com.example.insightsapp.data.api.CouponApiService
+import okhttp3.OkHttpClient
 
 @Preview(showBackground = true)
 @Composable
@@ -68,7 +72,6 @@ fun MainScreen(
     // Overlay flag for the coupons screen (unchanged)
     var showCoupons by remember { mutableStateOf(false) }
 
-    // NEW: scope to perform suspend repository calls from UI callbacks
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(uiState) {
@@ -152,15 +155,13 @@ fun MainScreen(
                     0 -> SurveysScreen(
                         userName = getFirstName(uiState.user?.fullName),
                         surveys = uiState.surveys,
-                        phoneNumber = phoneNumber, // ✅ Pass phone number
+                        phoneNumber = phoneNumber,
                         onSurveyClick = { survey, phoneNumber ->
-                            // ✅ Navigate to survey with both survey ID and user ID
                             println("🚀 MainScreen: Navigating to survey with userId: $userId")
                             navController.navigate("survey/${survey.surveyId}/$userId")
                         }
                     )
                     1 -> {
-                        // ✅ Add debug logs to verify data
                         println("📱 MainScreen: Passing to WalletScreen - balance=${uiState.walletBalance}, transactions=${uiState.transactions.size}")
 
                         WalletScreen(
@@ -171,14 +172,21 @@ fun MainScreen(
                             isLoading = uiState.isLoading
                         )
                     }
-                    2 -> ProfileScreen(phoneNumber = phoneNumber)
+                    2 -> ProfileScreen(
+                        phoneNumber = phoneNumber,
+                        onNavigateToMyCoupons = {
+                            // Use the userId from uiState or the parameter
+                            val userIdToPass = uiState.user?.userId ?: userId
+                            println("🎫 Navigation: Opening My Coupons for user: $userIdToPass")
+                            navController.navigate("my_coupons/$userIdToPass")
+                        }
+                    )
                 }
             }
 
-            // Coupons overlay: now writes a DEBIT on claim, then closes
             if (showCoupons) {
                 CouponsScreen(
-                    phoneNumber,
+                    phoneNumber = phoneNumber,
                     onClose = { showCoupons = false },
                     onClaimed = { coupon ->
                         val userId = uiState.user?.userId
@@ -189,7 +197,6 @@ fun MainScreen(
 
                         scope.launch {
                             try {
-                                // ✅ Insert transaction (this works)
                                 val txn = Transaction(
                                     transactionId = "txn_${System.currentTimeMillis()}",
                                     userId = userId,
@@ -203,7 +210,6 @@ fun MainScreen(
                                 databaseProvider.transactionRepository.insertTransaction(txn)
                                 println("✅ Transaction created: ${txn.description}")
 
-                                // ✅ Simple user coupon insert with direct JSON
                                 try {
                                     val httpClient = SupabaseHttpClient.getInstance()
                                     val result = httpClient.client.post("${SupabaseConfig.SUPABASE_URL}/rest/v1/user_coupons") {
@@ -213,17 +219,14 @@ fun MainScreen(
                                             append("Content-Profile", "public")
                                         }
                                         contentType(ContentType.Application.Json)
-                                        // ✅ Direct JSON - let Supabase handle UUID conversion
                                         setBody("""{"user_id":"$userId","coupon_id":"${coupon.id}"}""")
                                     }
 
                                     println("✅ User coupon inserted: ${result.status}")
                                 } catch (e: Exception) {
                                     println("⚠️ User coupon insert failed (continuing anyway): ${e.message}")
-                                    // Don't fail the whole operation - transaction already succeeded
                                 }
 
-                                // ✅ Refresh MainViewModel data
                                 viewModel.onCouponPurchased(coupon.points.toDouble())
 
                             } catch (e: Exception) {
@@ -240,7 +243,6 @@ fun MainScreen(
     }
 }
 
-// ✅ Helper function to extract first name properly (unchanged)
 private fun getFirstName(fullName: String?): String {
     return when {
         fullName.isNullOrBlank() -> "User"

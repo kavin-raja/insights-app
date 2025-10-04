@@ -33,7 +33,6 @@ class SurveyApiService {
             println("🔄 Fetching surveys from API")
             val response: List<ApiSurvey> = client.get("${ApiConfig.BASE_URL}/api/v1/surveys") {
                 headers {
-                    // Add auth headers if needed
                 }
             }.body()
 

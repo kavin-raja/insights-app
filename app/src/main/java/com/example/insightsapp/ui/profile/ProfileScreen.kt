@@ -33,7 +33,8 @@ fun ProfileScreenPreview() {
 
 @Composable
 fun ProfileScreen(
-    phoneNumber: String
+    phoneNumber: String,
+    onNavigateToMyCoupons: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val databaseProvider = RemoteDatabaseProvider.getInstance(context)
@@ -73,7 +74,7 @@ fun ProfileScreen(
         // Menu Items
         MenuSection(
             onPrivacyClick = { viewModel.onPrivacyClick() },
-            onCouponsClick = { viewModel.onCouponsClick() },
+            onCouponsClick = { onNavigateToMyCoupons() },
             onBankAccountClick = { viewModel.onBankAccountClick() },
             onHelpClick = { viewModel.onHelpClick() }
         )
@@ -128,7 +129,6 @@ fun UserInfoSection(
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Profile Picture Placeholder
             Box(
                 modifier = Modifier
                     .size(80.dp)

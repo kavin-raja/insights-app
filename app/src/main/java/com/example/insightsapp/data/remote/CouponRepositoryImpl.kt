@@ -71,7 +71,6 @@ private object CouponRepositoryImpl : CouponRepository {
                 parameter("user_id", "eq.$userId")
             }.body()
 
-            // ✅ Convert to UserCouponRow
             val result = userCoupons.map { UserCouponRow(couponId = it.couponId) }
             println("🎫 User has ${result.size} claimed coupons")
             result
@@ -82,7 +81,6 @@ private object CouponRepositoryImpl : CouponRepository {
             emptyList()
         }
     }
-
 
     override suspend fun redeem(userId: String, couponId: String, costPts: Int) {
         try {

@@ -66,7 +66,9 @@ class MainViewModel(
 
                 // 3. Load surveys from API - DIRECT CALL
                 val surveyList = try {
+                    println("🔄 Fetching surveys from API")
                     val apiSurveys = surveyRepository.apiService.getSurveys()
+                    println("✅ Fetched ${apiSurveys.size} surveys")
                     apiSurveys.map { it.toSurvey() }
                 } catch (e: Exception) {
                     println("⚠️ Error loading surveys: ${e.message}")
@@ -94,28 +96,37 @@ class MainViewModel(
         }
     }
 
-    // Helper method to get transactions without flows
     private suspend fun getTransactionsDirectly(
-        transactionRepo: Any, // Replace with your actual transaction repository type
+        transactionRepo: Any,
         userId: String
-    ): List<com.example.insightsapp.data.database.Transaction> {
+    ): List<Transaction> {
         return try {
-            // You'll need to add a method to your transaction repository that returns List directly
-            // For now, collect the flow once and return the list
+            // Try direct method first
+            println("🔍 Fetching transactions for user: $userId")
             transactionRepo::class.java.getMethod("getTransactionsByUserIdDirect", String::class.java)
-                .invoke(transactionRepo, userId) as List<com.example.insightsapp.data.database.Transaction>
+                .invoke(transactionRepo, userId) as List<Transaction>
+        } catch (e: NoSuchMethodException) {
+            println("⚠️ Direct method not found, trying flow approach")
+            try {
+                // Fallback: collect flow once
+                val method = transactionRepo::class.java.getMethod("getTransactionsByUserId", String::class.java)
+                val flow = method.invoke(transactionRepo, userId) as kotlinx.coroutines.flow.Flow<List<Transaction>>
+                val result = flow.first()
+                println("💰 Found ${result.size} transactions")
+                result
+            } catch (flowException: kotlinx.coroutines.CancellationException) {
+                println("✅ Flow completed successfully (AbortFlowException is normal)")
+                emptyList()
+            } catch (flowException: Exception) {
+                println("❌ Error fetching transactions from flow: ${flowException.message}")
+                emptyList()
+            }
         } catch (e: Exception) {
-            println("⚠️ Direct transaction fetch failed, trying flow once: ${e.message}")
-            // Fallback: collect flow once
-            val method = transactionRepo::class.java.getMethod("getTransactionsByUserId", String::class.java)
-            val flow = method.invoke(transactionRepo, userId) as kotlinx.coroutines.flow.Flow<List<com.example.insightsapp.data.database.Transaction>>
-            flow.first()
+            println("❌ Error fetching transactions: ${e.message}")
+            e.printStackTrace()
+            emptyList()
         }
     }
-
-
-
-
 
     private fun calculateBalance(transactions: List<Transaction>): Double {
         return transactions.sumOf { transaction ->
@@ -143,7 +154,6 @@ class MainViewModel(
     }
 
     fun onCouponPurchased(couponCost: Double) {
-        // Refresh user data to get updated transactions
         loadUserData()
     }
 }

@@ -3,6 +3,10 @@ package com.example.insightsapp.ui.onboarding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -14,12 +18,17 @@ import com.example.insightsapp.ui.profile.BasicDetailsScreen
 import com.example.insightsapp.ui.rewards.CongratulationsScreen
 import com.example.insightsapp.ui.survey.SurveyCompletionScreen
 import com.example.insightsapp.ui.survey.SurveyQuestionScreen
+import com.example.insightsapp.data.api.CouponApiService
+import com.example.insightsapp.data.repository.CouponRepository
+import com.example.insightsapp.data.remote.GetUserCouponsUseCase
+import com.example.insightsapp.ui.coupons.MyCouponsScreen
+import com.example.insightsapp.ui.coupons.MyCouponsViewModel
+import okhttp3.OkHttpClient
 
 @Composable
 fun OnboardingNavGraph() {
     val navController = rememberNavController()
 
-    // ✅ Store userId globally in navigation graph
     val currentUserId = remember { mutableStateOf<String?>(null) }
 
     NavHost(navController = navController, startDestination = "welcome") {
@@ -49,8 +58,8 @@ fun OnboardingNavGraph() {
             val phoneNumber = backStackEntry.arguments?.getString("phoneNumber") ?: ""
             OtpVerificationScreen(
                 phoneNumber = phoneNumber,
-                onOtpVerified = { isReturningUser, userId -> // ✅ Modified to receive userId
-                    currentUserId.value = userId // ✅ Store userId
+                onOtpVerified = { isReturningUser, userId ->
+                    currentUserId.value = userId
 
                     if (isReturningUser) {
                         println("✅ Returning user - skipping to main app. UserId: $userId")
@@ -145,12 +154,12 @@ fun OnboardingNavGraph() {
             val phoneNumber = backStackEntry.arguments?.getString("phoneNumber") ?: ""
             val userId = backStackEntry.arguments?.getString("userId") ?: ""
 
-            currentUserId.value = userId // ✅ Update stored userId
+            currentUserId.value = userId
 
             MainScreen(
                 initialTab = initialTab,
                 phoneNumber = phoneNumber,
-                userId = userId, // ✅ Pass userId to MainScreen
+                userId = userId,
                 navController = navController
             )
         }
@@ -167,7 +176,7 @@ fun OnboardingNavGraph() {
 
             SurveyQuestionScreen(
                 surveyId = surveyId,
-                userId = userId, // ✅ Now passes actual userId
+                userId = userId,
                 onBack = { navController.popBackStack() },
                 onClose = { navController.popBackStack() },
                 onComplete = { rewardPoints ->
@@ -192,11 +201,37 @@ fun OnboardingNavGraph() {
             SurveyCompletionScreen(
                 rewardPoints = rewardPoints,
                 onBackToHome = {
-                    // ✅ Navigate back with proper userId
                     navController.navigate("main_screen/0/+919150423766/$userId") {
                         popUpTo("main_screen/0/+919150423766/$userId") { inclusive = true }
                     }
                 }
+            )
+        }
+
+        composable(
+            route = "my_coupons/{userId}",
+            arguments = listOf(navArgument("userId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val userId = backStackEntry.arguments?.getString("userId") ?: currentUserId.value ?: "USER0000000002"
+
+            println("🎫 Navigation: Opening My Coupons for user: $userId")
+
+            val viewModel: MyCouponsViewModel = viewModel(
+                factory = object : ViewModelProvider.Factory {
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                        val apiService = CouponApiService()
+                        val repository = CouponRepository(apiService)
+                        val useCase = GetUserCouponsUseCase(repository)
+                        @Suppress("UNCHECKED_CAST")
+                        return MyCouponsViewModel(useCase) as T
+                    }
+                }
+            )
+
+            MyCouponsScreen(
+                onBackClick = { navController.popBackStack() },
+                viewModel = viewModel,
+                userId = userId
             )
         }
     }
